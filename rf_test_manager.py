@@ -20,22 +20,8 @@ import csv
 import subprocess
 import datetime
 
-# Auto-install pyserial if missing
-try:
-    import serial
-    import serial.tools.list_ports
-except ImportError:
-    print("[INFO] 'pyserial' is required but not installed. Installing it now...")
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "pyserial"])
-        import serial
-        import serial.tools.list_ports
-        print("[SUCCESS] 'pyserial' installed successfully!\n")
-    except Exception as e:
-        print(f"[ERROR] Failed to install 'pyserial': {e}")
-        print("Please install it manually using: pip install pyserial")
-        sys.exit(1)
-
+import serial
+import serial.tools.list_ports
 # Default configuration parameters
 DEFAULT_PORT = None
 AVAILABLE_PORTS = []

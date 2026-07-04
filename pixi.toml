@@ -1,0 +1,14 @@
+[workspace]
+name = "P2026_rfTest"
+version = "0.1.0"
+description = "LoRa Avionic Link Test & Flashing Manager"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "osx-64", "win-64", "linux-64"]
+
+[tasks]
+run = "python rf_test_manager.py"
+run-w = "python rf_test_manager_w.py"
+
+[dependencies]
+python = ">=3.9"
+pyserial = ">=3.5"

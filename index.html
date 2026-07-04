@@ -1,0 +1,2384 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>航電系統 LoRa 無線通訊測試準備審查報告 (TRR)</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Chart.js for premium data visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --bg-primary: #0b0f19;
+      --bg-secondary: #131b2e;
+      --bg-tertiary: #1e293b;
+      --accent-color: #06b6d4; /* Electric Cyan */
+      --accent-glow: rgba(6, 182, 212, 0.15);
+      --accent-purple: #8b5cf6; /* Electric Purple */
+      --accent-emerald: #10b981; /* Success Green */
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --card-gradient: linear-gradient(135deg, rgba(19, 27, 46, 0.7) 0%, rgba(30, 41, 59, 0.5) 100%);
+      --transition-speed: 0.3s;
+    }
+
+    .light-mode {
+      --bg-primary: #f8fafc;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f1f5f9;
+      --accent-color: #0284c7; /* Cyan Sky */
+      --accent-glow: rgba(2, 132, 199, 0.1);
+      --accent-purple: #7c3aed;
+      --accent-emerald: #059669;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --border-color: rgba(0, 0, 0, 0.08);
+      --card-gradient: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(241, 255, 249, 0.8) 100%);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      transition: background-color var(--transition-speed), color var(--transition-speed);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* Cyberpunk Grid Background Overlay */
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-image: 
+        linear-gradient(rgba(6, 182, 212, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(6, 182, 212, 0.03) 1px, transparent 1px);
+      background-size: 30px 30px;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    /* Navigation & Layout */
+    .dashboard-container {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+
+    /* Sidebar Styles */
+    aside {
+      background-color: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      padding: 2rem 1.5rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      z-index: 10;
+      transition: background-color var(--transition-speed), border-color var(--transition-speed);
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .logo-container {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent-color), var(--accent-purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+    }
+
+    .logo-text h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(to right, var(--text-primary), var(--accent-color));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-text p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      flex-grow: 1;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.85rem 1rem;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+
+    .nav-item:hover, .nav-item.active {
+      color: var(--text-primary);
+      background-color: var(--bg-tertiary);
+      border-color: var(--border-color);
+    }
+
+    .nav-item.active {
+      border-left: 3px solid var(--accent-color);
+      background: linear-gradient(90deg, var(--accent-glow) 0%, transparent 100%);
+    }
+
+    .nav-item i {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Sidebar Footer / Controls */
+    .sidebar-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      border-radius: 8px;
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      background-color: var(--border-color);
+    }
+
+    /* Main Content Area */
+    main {
+      padding: 2.5rem;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      overflow-y: auto;
+    }
+
+    header.main-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .header-title h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+    }
+
+    .header-title p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      margin-top: 0.25rem;
+    }
+
+    .system-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background-color: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: var(--accent-emerald);
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .system-status.pending {
+      background-color: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: currentColor;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.4; }
+      50% { opacity: 1; }
+      100% { opacity: 0.4; }
+    }
+
+    /* Content Sections */
+    .content-section {
+      display: none;
+      animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .content-section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Cards Style */
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .card {
+      background: var(--card-gradient);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 40px rgba(6, 182, 212, 0.05);
+      border-color: rgba(6, 182, 212, 0.2);
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.75rem;
+    }
+
+    .card-title i {
+      color: var(--accent-color);
+    }
+
+    .info-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.95rem;
+    }
+
+    .info-label {
+      color: var(--text-secondary);
+    }
+
+    .info-value {
+      font-weight: 500;
+      text-align: right;
+    }
+
+    .tag {
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    /* Diagram Styles */
+    .diagram-card {
+      grid-column: 1 / -1;
+    }
+
+    .pinout-visualizer {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-top: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .pinout-visualizer {
+        grid-template-columns: 1fr;
+      }
+      .dashboard-container {
+        grid-template-columns: 1fr;
+      }
+      aside {
+        height: auto;
+        position: relative;
+      }
+    }
+
+    .board-mock {
+      background-color: #0d121f;
+      border: 2px solid #1e293b;
+      border-radius: 8px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .board-header-badge {
+      position: absolute;
+      top: 0;
+      right: 0;
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-color));
+      color: white;
+      font-size: 0.75rem;
+      padding: 0.25rem 1rem;
+      border-bottom-left-radius: 8px;
+      font-weight: 600;
+    }
+
+    .board-pins-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+
+    .board-pins-table th, .board-pins-table td {
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    .board-pins-table th {
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .board-pins-table tr:not(:last-child) td {
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+    }
+
+    .pin-badge {
+      display: inline-block;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-family: 'Fira Code', monospace;
+      font-weight: 500;
+    }
+
+    .pin-lora { background-color: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3); }
+    .pin-esp { background-color: rgba(6, 182, 212, 0.15); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.3); }
+
+    /* Interactive Test Matrix Card styling */
+    .test-matrix-container {
+      background: var(--card-gradient);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+      margin-bottom: 2rem;
+    }
+
+    .matrix-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .matrix-title h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--accent-color);
+    }
+
+    .matrix-title p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .matrix-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .btn {
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background-color: var(--accent-color);
+      color: #0b0f19;
+    }
+
+    .btn-primary:hover {
+      background-color: #22d3ee;
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-tertiary);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--border-color);
+    }
+
+    /* Custom Data Input Table */
+    .table-responsive {
+      overflow-x: auto;
+      margin-bottom: 1.5rem;
+    }
+
+    .test-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+    }
+
+    .test-table th, .test-table td {
+      padding: 0.6rem 0.4rem;
+      border: 1px solid var(--border-color);
+      font-size: 0.85rem;
+    }
+
+    .test-table th {
+      background-color: var(--bg-tertiary);
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .test-table tr:hover td {
+      background-color: rgba(255, 255, 255, 0.01);
+    }
+
+    .table-indicator-row {
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-primary);
+      background-color: rgba(6, 182, 212, 0.05);
+    }
+
+    .table-indicator-row td {
+      padding-left: 1rem;
+    }
+
+    .input-cell {
+      width: 70px;
+      padding: 0.3rem !important;
+    }
+
+    .input-cell input {
+      width: 100%;
+      background-color: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.25rem;
+      border-radius: 4px;
+      text-align: center;
+      font-family: 'Fira Code', monospace;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .input-cell input:focus {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 5px var(--accent-glow);
+    }
+
+    .avg-val {
+      font-weight: 700;
+      color: var(--accent-emerald);
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* Guide Steps */
+    .steps-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .step-card {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 1rem;
+      background: var(--card-gradient);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1.5rem;
+      align-items: start;
+    }
+
+    .step-number {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-color), var(--accent-purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 1.1rem;
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+    }
+
+    .step-content h4 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    .step-content p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .step-details {
+      list-style-type: none;
+      padding-left: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .step-details li {
+      position: relative;
+      padding-left: 1.25rem;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .step-details li::before {
+      content: "▪";
+      color: var(--accent-color);
+      position: absolute;
+      left: 0;
+      top: -1px;
+    }
+
+    .console-command {
+      background-color: #05070f;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+      color: #38bdf8;
+      margin-top: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .copy-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: color 0.2s ease;
+    }
+
+    .copy-btn:hover {
+      color: var(--text-primary);
+    }
+
+    /* Code Viewer */
+    .code-viewer-container {
+      background-color: #070913;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 650px;
+    }
+
+    .code-header {
+      background-color: #0c0e1a;
+      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .code-tabs {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .code-tab {
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      background-color: transparent;
+      border: 1px solid transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .code-tab.active {
+      background-color: var(--bg-tertiary);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .code-content-wrapper {
+      position: relative;
+      overflow: auto;
+      height: 100%;
+      background-color: #070913;
+    }
+
+    .code-block {
+      margin: 0;
+      padding: 1.5rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: #e2e8f0;
+      display: none;
+    }
+
+    .code-block.active {
+      display: block;
+    }
+
+    /* Custom Syntax Highlighting Styles */
+    .code-keyword { color: #f472b6; font-weight: 500; }
+    .code-type { color: #38bdf8; }
+    .code-comment { color: #64748b; font-style: italic; }
+    .code-string { color: #34d399; }
+    .code-number { color: #fb923c; }
+    .code-directive { color: #818cf8; }
+
+    /* Visual Charts Container */
+    .chart-card {
+      background: var(--card-gradient);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 350px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<div class="dashboard-container">
+  <!-- SIDEBAR NAVIGATION -->
+  <aside>
+    <div class="sidebar-header">
+      <div class="logo-container">
+        <i data-lucide="radio"></i>
+      </div>
+      <div class="logo-text">
+        <h1>LoRa TRR</h1>
+        <p>Avionic Link Test</p>
+      </div>
+    </div>
+
+    <nav>
+      <div class="nav-item active" onclick="switchSection('overview', this)">
+        <i data-lucide="info"></i>
+        <span>測試基本資訊</span>
+      </div>
+      <div class="nav-item" onclick="switchSection('hardware', this)">
+        <i data-lucide="cpu"></i>
+        <span>硬體與接線</span>
+      </div>
+      <div class="nav-item" onclick="switchSection('matrix', this)">
+        <i data-lucide="table"></i>
+        <span>交互測試矩陣</span>
+      </div>
+      <div class="nav-item" onclick="switchSection('guide', this)">
+        <i data-lucide="clipboard-list"></i>
+        <span>操作步驟指南</span>
+      </div>
+      <div class="nav-item" onclick="switchSection('code', this)">
+        <i data-lucide="code"></i>
+        <span>源碼備份瀏覽</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="theme-toggle-btn" onclick="toggleTheme()">
+        <i data-lucide="sun" id="theme-icon"></i>
+        <span id="theme-text">切換亮色模式</span>
+      </button>
+      <div style="font-size: 0.75rem; color: var(--text-muted); text-align: center;">
+        PlatformIO & ESP32 LoRa
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN WINDOW -->
+  <main>
+    <header class="main-header">
+      <div class="header-title">
+        <h2 id="section-title">測試準備審查報告 (TRR)</h2>
+        <p id="section-subtitle">LoRa 遠距離實地通訊效能測試系統面板</p>
+      </div>
+      <div class="system-status pending" id="status-badge">
+        <div class="pulse-dot"></div>
+        <span id="status-text">待審查 (Pending Review)</span>
+      </div>
+    </header>
+
+    <!-- SECTION 1: OVERVIEW -->
+    <section id="overview" class="content-section active">
+      <div class="grid-container">
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="layers"></i>
+            <span>專案概觀</span>
+          </div>
+          <div class="info-list">
+            <div class="info-item">
+              <span class="info-label">測試專案</span>
+              <span class="info-value">LoRa 遠距離實地通訊效能測試</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">載波頻段</span>
+              <span class="info-value">433 MHz / 915 MHz</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">主要測試點</span>
+              <span class="info-value"><span class="tag">社長家</span> ↔ <span class="tag">望高寮</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="calendar"></i>
+            <span>審查資訊</span>
+          </div>
+          <div class="info-list">
+            <div class="info-item">
+              <span class="info-label">暫定測試日期</span>
+              <span class="info-value">2026 年 6 月 27 日</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">天線類型</span>
+              <span class="info-value">八木天線(定向) / 鞭狀(全向)</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">測試人員</span>
+              <span class="info-value">航電測試小組</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <i data-lucide="sliders"></i>
+            <span>環境參數設定</span>
+          </div>
+          <div class="info-list">
+            <div class="info-item">
+              <span class="info-label">擴頻因子 (SF)</span>
+              <span class="info-value">SF7 (測試核心)</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">封包負載長度</span>
+              <span class="info-value">256 Bytes</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">極化偏角測試</span>
+              <span class="info-value">0° / 30° / 45°</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card diagram-card" style="margin-bottom: 2rem;">
+        <div class="card-title">
+          <i data-lucide="map-pin"></i>
+          <span>測試地點鏈路部署說明</span>
+        </div>
+        <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.95rem;">
+          本次實地測試在<b>視距（LOS）</b>條件下評估航電鏈路的可靠性。
+          透過將定向八木天線架設於固定地面站，並在冗餘航電端配戴全向鞭狀天線，進行不同偏角下的性能測量。
+        </p>
+        <div class="info-list" style="margin-top: 1rem;">
+          <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 0.75rem; border-left: 3px solid var(--accent-color); background-color: rgba(6, 182, 212, 0.02); border-radius: 0 6px 6px 0;">
+            <i data-lucide="radio" style="color: var(--accent-color); margin-top: 0.2rem;"></i>
+            <div>
+              <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.25rem;">地面接收/發射端 (社長家)</h4>
+              <p style="font-size: 0.85rem; color: var(--text-secondary);">配置 433 MHz & 915 MHz 八木天線 (Yagi) + Orion v5 核心板，執行定向高增益收發。</p>
+            </div>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 0.75rem; border-left: 3px solid var(--accent-purple); background-color: rgba(139, 92, 246, 0.02); border-radius: 0 6px 6px 0; margin-top: 0.75rem;">
+            <i data-lucide="rocket" style="color: var(--accent-purple); margin-top: 0.2rem;"></i>
+            <div>
+              <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.25rem;">航電/冗餘模擬端 (望高寮)</h4>
+              <p style="font-size: 0.85rem; color: var(--text-secondary);">配置鞭型天線 + Orion v6 冗餘系統板 / 航電主系統板，模擬在空中的全向輻射情況。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: HARDWARE -->
+    <section id="hardware" class="content-section">
+      <div class="card diagram-card" style="margin-bottom: 2rem;">
+        <div class="card-title">
+          <i data-lucide="cpu"></i>
+          <span>LoRa 模組與 ESP32 連接配置</span>
+        </div>
+        <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 1.5rem;">
+          為保證 433 MHz (主系統) 與 915 MHz (冗餘系統) 能正常運作，以下列出兩套系統所對應的 ESP32 GPIO 連接配置。注意，社長家採用 Orion v5 板，望高寮採用 Orion v6 及航電主系統板。
+        </p>
+
+        <div class="pinout-visualizer">
+          <!-- ORION V5 BOARD -->
+          <div class="board-mock">
+            <div class="board-header-badge">ORION V5 (社長家)</div>
+            <h4 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; margin-bottom: 1rem;">ESP32 GPIO 腳位</h4>
+            <table class="board-pins-table">
+              <thead>
+                <tr>
+                  <th>LoRa 訊號</th>
+                  <th>GPIO 腳位</th>
+                  <th>腳位類型</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>SCK</td>
+                  <td><span class="pin-badge pin-esp">GPIO 18</span></td>
+                  <td>VSPI CLK</td>
+                </tr>
+                <tr>
+                  <td>MISO</td>
+                  <td><span class="pin-badge pin-esp">GPIO 19</span></td>
+                  <td>VSPI MISO</td>
+                </tr>
+                <tr>
+                  <td>MOSI</td>
+                  <td><span class="pin-badge pin-esp">GPIO 23</span></td>
+                  <td>VSPI MOSI</td>
+                </tr>
+                <tr>
+                  <td>NSS / CS</td>
+                  <td><span class="pin-badge pin-lora">GPIO 33</span></td>
+                  <td>LoRa NSS (片選)</td>
+                </tr>
+                <tr>
+                  <td>RST (Reset)</td>
+                  <td><span class="pin-badge pin-lora">GPIO 26</span></td>
+                  <td>LoRa Reset</td>
+                </tr>
+                <tr>
+                  <td>DIO0 (Interrupt)</td>
+                  <td><span class="pin-badge pin-lora">GPIO 13</span></td>
+                  <td>LoRa DIO0</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- ORION V6 / AVIONICS MAIN -->
+          <div class="board-mock">
+            <div class="board-header-badge" style="background: linear-gradient(135deg, var(--accent-color), var(--accent-emerald))">ORION V6 / 航電主板 (望高寮)</div>
+            <h4 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; margin-bottom: 1rem;">ESP32 GPIO 腳位</h4>
+            <table class="board-pins-table">
+              <thead>
+                <tr>
+                  <th>LoRa 訊號</th>
+                  <th>GPIO 腳位</th>
+                  <th>腳位類型</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>SCK</td>
+                  <td><span class="pin-badge pin-esp">GPIO 18</span></td>
+                  <td>VSPI CLK</td>
+                </tr>
+                <tr>
+                  <td>MISO</td>
+                  <td><span class="pin-badge pin-esp">GPIO 19</span></td>
+                  <td>VSPI MISO</td>
+                </tr>
+                <tr>
+                  <td>MOSI</td>
+                  <td><span class="pin-badge pin-esp">GPIO 23</span></td>
+                  <td>VSPI MOSI</td>
+                </tr>
+                <tr>
+                  <td>NSS / CS</td>
+                  <td><span class="pin-badge pin-lora" style="background-color: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">GPIO 33</span></td>
+                  <td>LoRa NSS (片選)</td>
+                </tr>
+                <tr>
+                  <td>RST (Reset)</td>
+                  <td><span class="pin-badge pin-lora" style="background-color: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">GPIO 26</span></td>
+                  <td>LoRa Reset</td>
+                </tr>
+                <tr>
+                  <td>DIO0 (Interrupt)</td>
+                  <td><span class="pin-badge pin-lora" style="background-color: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">GPIO 13</span></td>
+                  <td>LoRa DIO0</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: MATRIX -->
+    <section id="matrix" class="content-section">
+      <!-- CONTROL BUTTONS -->
+      <div class="test-matrix-container" style="padding: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <span style="font-weight: 600;">互動式數據紀錄器</span>
+          <p style="font-size: 0.8rem; color: var(--text-secondary);">在此處填入現場實測數值，網頁將為您自動計算平均值，並能匯出為符合格式的紀錄 CSV。</p>
+        </div>
+        <div class="matrix-actions">
+          <button class="btn btn-secondary" onclick="fillMockData()">
+            <i data-lucide="sparkles"></i>
+            <span>預填展示數據</span>
+          </button>
+          <button class="btn btn-primary" onclick="exportCSV()">
+            <i data-lucide="download"></i>
+            <span>匯出測試紀錄 CSV</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- LORA 915 MHz TABLES -->
+      <div class="test-matrix-container">
+        <div class="matrix-header">
+          <div class="matrix-title">
+            <h3>【第一部分：915 MHz 鏈路測試 (SF7 / 256 Bytes)】</h3>
+            <p>使用 Orion v5/v6 在 915 MHz 頻段進行雙向數據評估</p>
+          </div>
+        </div>
+
+        <!-- CONFIG 1 -->
+        <h4 style="margin-bottom: 0.75rem; font-size: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+          <span class="tag">配置 1</span> 社長家 (八木) ➔ 望高寮 (鞭型)
+        </h4>
+        <div class="table-responsive">
+          <table class="test-table" id="table-config-1">
+            <thead>
+              <tr>
+                <th width="15%">評估指標</th>
+                <th>No. 1</th>
+                <th>No. 2</th>
+                <th>No. 3</th>
+                <th>No. 4</th>
+                <th>No. 5</th>
+                <th>No. 6</th>
+                <th width="12%">平均值</th>
+                <th width="10%">極化：30°</th>
+                <th width="10%">極化：45°</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-metric="loss">
+                <td>丟包率 (%)</td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="avg-val" data-avg="loss">-</td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+              </tr>
+              <tr data-metric="snr">
+                <td>SNR (dB)</td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="avg-val" data-avg="snr">-</td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+              </tr>
+              <tr data-metric="rssi">
+                <td>RSSI (dBm)</td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-1')"></td>
+                <td class="avg-val" data-avg="rssi">-</td>
+                <td class="input-cell"><input type="number" value=""></td>
+                <td class="input-cell"><input type="number" value=""></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- CONFIG 2 -->
+        <h4 style="margin-top: 2rem; margin-bottom: 0.75rem; font-size: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+          <span class="tag">配置 2</span> 社長家 (八木) 密 望高寮 (鞭型)
+        </h4>
+        <div class="table-responsive">
+          <table class="test-table" id="table-config-2">
+            <thead>
+              <tr>
+                <th width="15%">評估指標</th>
+                <th>No. 1</th>
+                <th>No. 2</th>
+                <th>No. 3</th>
+                <th>No. 4</th>
+                <th>No. 5</th>
+                <th>No. 6</th>
+                <th width="12%">平均值</th>
+                <th width="10%">極化：30°</th>
+                <th width="10%">極化：45°</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-metric="loss">
+                <td>丟包率 (%)</td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="avg-val" data-avg="loss">-</td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+              </tr>
+              <tr data-metric="snr">
+                <td>SNR (dB)</td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="avg-val" data-avg="snr">-</td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+              </tr>
+              <tr data-metric="rssi">
+                <td>RSSI (dBm)</td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-2')"></td>
+                <td class="avg-val" data-avg="rssi">-</td>
+                <td class="input-cell"><input type="number" value=""></td>
+                <td class="input-cell"><input type="number" value=""></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- LORA 433 MHz TABLES -->
+      <div class="test-matrix-container">
+        <div class="matrix-header">
+          <div class="matrix-title">
+            <h3>【第二部分：433 MHz 鏈路測試 (SF7 / 256 Bytes)】</h3>
+            <p>使用 Orion v5 及航電主系統板在 433 MHz 頻段進行通訊測試</p>
+          </div>
+        </div>
+
+        <!-- CONFIG 3 -->
+        <h4 style="margin-bottom: 0.75rem; font-size: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+          <span class="tag" style="background-color: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3);">配置 3</span> 社長家 (八木) ➔ 望高寮 (鞭型)
+        </h4>
+        <div class="table-responsive">
+          <table class="test-table" id="table-config-3">
+            <thead>
+              <tr>
+                <th width="15%">評估指標</th>
+                <th>No. 1</th>
+                <th>No. 2</th>
+                <th>No. 3</th>
+                <th>No. 4</th>
+                <th>No. 5</th>
+                <th>No. 6</th>
+                <th width="12%">平均值</th>
+                <th width="10%">極化：30°</th>
+                <th width="10%">極化：45°</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-metric="loss">
+                <td>丟包率 (%)</td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="avg-val" data-avg="loss">-</td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+              </tr>
+              <tr data-metric="snr">
+                <td>SNR (dB)</td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="avg-val" data-avg="snr">-</td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+              </tr>
+              <tr data-metric="rssi">
+                <td>RSSI (dBm)</td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-3')"></td>
+                <td class="avg-val" data-avg="rssi">-</td>
+                <td class="input-cell"><input type="number" value=""></td>
+                <td class="input-cell"><input type="number" value=""></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- CONFIG 4 -->
+        <h4 style="margin-top: 2rem; margin-bottom: 0.75rem; font-size: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+          <span class="tag" style="background-color: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3);">配置 4</span> 社長家 (八木) 密 望高寮 (鞭型)
+        </h4>
+        <div class="table-responsive">
+          <table class="test-table" id="table-config-4">
+            <thead>
+              <tr>
+                <th width="15%">評估指標</th>
+                <th>No. 1</th>
+                <th>No. 2</th>
+                <th>No. 3</th>
+                <th>No. 4</th>
+                <th>No. 5</th>
+                <th>No. 6</th>
+                <th width="12%">平均值</th>
+                <th width="10%">極化：30°</th>
+                <th width="10%">極化：45°</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-metric="loss">
+                <td>丟包率 (%)</td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="avg-val" data-avg="loss">-</td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+              </tr>
+              <tr data-metric="snr">
+                <td>SNR (dB)</td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" step="0.1" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="avg-val" data-avg="snr">-</td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+                <td class="input-cell"><input type="number" step="0.1" value=""></td>
+              </tr>
+              <tr data-metric="rssi">
+                <td>RSSI (dBm)</td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="input-cell"><input type="number" value="" oninput="calculateAverages('table-config-4')"></td>
+                <td class="avg-val" data-avg="rssi">-</td>
+                <td class="input-cell"><input type="number" value=""></td>
+                <td class="input-cell"><input type="number" value=""></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- DATA CHART VISUALIZATION -->
+      <div class="chart-card">
+        <div class="card-title">
+          <i data-lucide="line-chart"></i>
+          <span>實地測試鏈路效能分析圖 (915 MHz / 433 MHz)</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="performanceChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: GUIDE -->
+    <section id="guide" class="content-section">
+      <div class="steps-container">
+        <!-- STEP 1 -->
+        <div class="step-card">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h4>韌體燒錄與頻率配置</h4>
+            <p>確保兩端天線皆已牢固接妥，並使用 <code>rf_test_manager.py</code> 管理程式自動燒錄。</p>
+            <ul class="step-details">
+              <li>開啟系統終端機並執行自動化管理器腳本：</li>
+            </ul>
+            <div class="console-command">
+              <span>python rf_test_manager.py</span>
+              <button class="copy-btn" onclick="copyText('python rf_test_manager.py')"><i data-lucide="copy" style="width:16px;height:16px;"></i></button>
+            </div>
+            <ul class="step-details" style="margin-top: 0.75rem;">
+              <li>選擇 <b>2) Flash Firmware</b> 進入燒錄選單。</li>
+              <li>根據組別選擇發射端 (Sender) / 接收端 (Receiver)、硬體版本 (Orion v5/v6)，以及載波頻率 (433MHz/915MHz)。</li>
+              <li>程式會自動更動代碼中的 <code>LORA_FREQ</code> 巨集並調用 PlatformIO CLI 進行燒錄。</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- STEP 2 -->
+        <div class="step-card">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h4>對位預測量與天線指向優化</h4>
+            <p>為了獲得最大信號增益，必須在測試前進行環境背景訊號測量與天線對位校準。</p>
+            <ul class="step-details">
+              <li><b>接收端</b>：在選單中啟動 <b>4) Run Receiver Data Logger</b> 進入即時封包監聽模式。</li>
+              <li><b>發射端</b>：在選單中啟動 <b>3) Start Transmitter</b>，並輸入 <b>3</b> (Pre-Test 模式，發射 SF7、間隔 1 秒)。</li>
+              <li>接收端會顯示動態的 RSSI 強度，根據該數值微調八木天線指向以達最佳訊號（最接近 0 dBm）。</li>
+              <li>對齊完成後，發射端輸入 <code>x</code> 停止預測。</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- STEP 3 -->
+        <div class="step-card">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h4>常規 6 次測試紀錄 (No. 1 - No. 6)</h4>
+            <p>進行常規無偏角 0° 的 6 輪對稱性傳輸，每一輪包含發射 100 個封包。</p>
+            <ul class="step-details">
+              <li>接收端保持 Data Logger 監聽，並可隨時在終端機輸入 <code>r</code> 重置統計計數。</li>
+              <li>發射端選擇 <b>1) Formal Test</b>（正式測試），輸入 <b>7</b> (Spreading Factor = 7) 開始傳輸。</li>
+              <li>傳輸完成後，<code>rf_test_manager.py</code> 會自動將記錄的 RSSI, SNR, 丟包率以 CSV 格式寫入至 <code>logs/</code> 資料夾。</li>
+              <li>重置接收端 (輸入 <code>r</code>)，並重複執行共 6 次以完成常規矩陣。</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- STEP 4 -->
+        <div class="step-card">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h4>極化偏角測試</h4>
+            <p>測試八木天線在極化平面旋轉 30° 與 45° 角度下的抗干擾及訊號衰減表現。</p>
+            <ul class="step-details">
+              <li>調整望高寮端的鞭狀天線/社長家端的八木天線夾角至 30° 或 45°。</li>
+              <li>接收端重置統計，發射端以相同程序發射 100 個 SF7 封包。</li>
+              <li>測試完畢後，將 Logger 收集到的平均數值填入上方「交互測試矩陣」對應欄位中存檔。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: CODE -->
+    <section id="code" class="content-section">
+      <div class="code-viewer-container">
+        <div class="code-header">
+          <div class="code-tabs">
+            <button class="code-tab active" onclick="switchCodeTab('sender-v5', this)">Sender V5</button>
+            <button class="code-tab" onclick="switchCodeTab('sender-v6', this)">Sender V6</button>
+            <button class="code-tab" onclick="switchCodeTab('receiver-v5', this)">Receiver V5</button>
+            <button class="code-tab" onclick="switchCodeTab('receiver-v6', this)">Receiver V6</button>
+          </div>
+          <button class="btn btn-secondary" onclick="copyCurrentCodeBlock()">
+            <i data-lucide="copy" style="width:16px;height:16px;"></i>
+            <span>複製此代碼</span>
+          </button>
+        </div>
+
+        <div class="code-content-wrapper">
+          <!-- SENDER V5 -->
+          <pre class="code-block active" id="code-sender-v5"><code><span class="code-directive">#include &lt;SPI.h&gt;</span>
+<span class="code-directive">#include &lt;LoRa.h&gt;</span>
+
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">// 測試載波頻率配置（請依據當下測試配置切換註解，再進行燒錄）</span>
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">//#define LORA_FREQ   433E6   // 433 MHz 鏈路：配置 3 & 配置 4</span>
+<span class="code-directive">#define LORA_FREQ      915E6</span>   <span class="code-comment">// 915 MHz 鏈路：配置 1 & 配置 2</span>
+
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">// ESP32 硬體腳位配置（發射端 Orion v5 自訂 SPI 腳位）</span>
+<span class="code-comment">// =================================================================</span>
+<span class="code-directive">#define SCK_PIN   18</span>
+<span class="code-directive">#define MISO_PIN  19</span>
+<span class="code-directive">#define MOSI_PIN  23</span>
+<span class="code-directive">#define NSS_PIN   33</span>   <span class="code-comment">// CS 片選 (Orion v5)</span>
+<span class="code-directive">#define RST_PIN   26</span>   <span class="code-comment">// Reset (Orion v5)</span>
+<span class="code-directive">#define DIO0_PIN  13</span>   <span class="code-comment">// 中斷腳位 (Orion v5)</span>
+
+<span class="code-keyword">enum</span> Mode { IDLE, PRE_TEST, FORMAL_TEST, STRESS_TEST };
+Mode currentMode = IDLE;
+<span class="code-type">int</span> currentSF = <span class="code-number">7</span>;
+<span class="code-type">unsigned long</span> testInterval = <span class="code-number">500</span>; 
+<span class="code-type">unsigned long</span> packetCounter = <span class="code-number">0</span>;
+<span class="code-type">unsigned long</span> lastSendTime = <span class="code-number">0</span>;
+<span class="code-keyword">const</span> <span class="code-type">int</span> packetLimit = <span class="code-number">100</span>;
+<span class="code-type">int</span> targetPayloadLength = <span class="code-number">256</span>; <span class="code-comment">// 配合紀錄表，預設改為 256 Bytes</span>
+String currentUUID = <span class="code-string">"N/A"</span>;    <span class="code-comment">// 儲存當前測試的 UUID</span>
+
+<span class="code-type">void</span> handleSerial();
+<span class="code-type">void</span> sendPacket();
+<span class="code-type">void</span> updateParams(<span class="code-type">int</span> sf);
+<span class="code-type">void</span> printMenu();
+<span class="code-type">unsigned long</span> getSafeInterval(<span class="code-type">int</span> sf); 
+
+<span class="code-type">void</span> setup() {
+  Serial.begin(<span class="code-number">115200</span>);
+  <span class="code-keyword">while</span> (!Serial && millis() &lt; <span class="code-number">3000</span>);
+  delay(<span class="code-number">500</span>);
+  <span class="code-keyword">while</span> (Serial.available() &gt; <span class="code-number">0</span>) {
+    Serial.read();
+  }
+  Serial.setTimeout(<span class="code-number">50</span>);
+  
+  Serial.print(<span class="code-string">"\n=== LoRa 發射端初始化 [頻率: "</span>);
+  Serial.print(LORA_FREQ / <span class="code-number">1E6</span>);
+  Serial.println(<span class="code-string">" MHz] ==="</span>);
+
+  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, NSS_PIN);
+  LoRa.setPins(NSS_PIN , RST_PIN, DIO0_PIN);
+  
+  <span class="code-keyword">if</span> (!LoRa.begin(LORA_FREQ)) { 
+    Serial.println(<span class="code-string">"LoRa 初始化失敗，請確認接線與頻率設定！"</span>); 
+    <span class="code-keyword">while</span>(<span class="code-number">1</span>); 
+  }
+  
+  LoRa.setSignalBandwidth(<span class="code-number">125E3</span>);
+  LoRa.setCodingRate4(<span class="code-number">6</span>);
+  LoRa.setPreambleLength(<span class="code-number">12</span>);
+  LoRa.setSyncWord(<span class="code-number">0xF1</span>);
+  LoRa.enableCrc(); // 【盲點修復】開啟硬體 CRC
+  LoRa.setTxPower(<span class="code-number">20</span>); // 【盲點修復】強制設定最大功率
+  printMenu();
+}
+
+<span class="code-type">void</span> loop() {
+  handleSerial();
+
+  <span class="code-keyword">if</span> (currentMode != IDLE) {
+    <span class="code-keyword">if</span> (millis() - lastSendTime &gt; testInterval) {
+      sendPacket();
+      lastSendTime = millis(); 
+      <span class="code-keyword">if</span> ((currentMode == FORMAL_TEST || currentMode == STRESS_TEST) && packetCounter &gt;= packetLimit) {
+        Serial.println(<span class="code-string">"\n&gt;&gt;&gt; 測試任務完成，回到待機。"</span>);
+        currentMode = IDLE;
+        printMenu();
+      }
+    }
+  }
+}
+
+<span class="code-type">void</span> handleSerial() {
+  <span class="code-keyword">if</span> (Serial.available() &gt; <span class="code-number">0</span>) {
+    String input = Serial.readStringUntil(<span class="code-number">'\n'</span>);
+    input.trim();
+    String lowerInput = input;
+    lowerInput.toLowerCase(); 
+    
+    <span class="code-keyword">if</span> (lowerInput == <span class="code-string">"p"</span>) {
+      currentMode = PRE_TEST;
+      testInterval = <span class="code-number">1000</span>;
+      updateParams(<span class="code-number">7</span>);
+      Serial.println(<span class="code-string">"\n&gt;&gt;&gt; [環境預測量階段] SF7, Interval 1s"</span>);
+      lastSendTime = millis() - testInterval; 
+    } 
+    <span class="code-keyword">else</span> <span class="code-keyword">if</span> (lowerInput == <span class="code-string">"x"</span>) {
+      currentMode = IDLE;
+      Serial.println(<span class="code-string">"\n&gt;&gt;&gt; 已停止。"</span>);
+    } 
+    <span class="code-keyword">else</span> <span class="code-keyword">if</span> (lowerInput.startsWith(<span class="code-string">"u "</span>)) {
+      currentUUID = input.substring(<span class="code-number">2</span>);
+      currentUUID.trim();
+      Serial.print(<span class="code-string">"\n&gt;&gt;&gt; [設定] UUID 已更改為: "</span>);
+      Serial.println(currentUUID);
+    } 
+    <span class="code-keyword">else</span> <span class="code-keyword">if</span> (lowerInput.startsWith(<span class="code-string">"s "</span>)) {
+      <span class="code-type">int</span> sf = <span class="code-number">0</span>, inter = <span class="code-number">0</span>;
+      <span class="code-keyword">if</span> (sscanf(lowerInput.c_str(), <span class="code-string">"s %d %d"</span>, &sf, &inter) == <span class="code-number">2</span>) {
+        <span class="code-keyword">if</span> (sf &gt;= <span class="code-number">6</span> && sf &lt;= <span class="code-number">12</span> && inter &gt; <span class="code-number">0</span>) {
+          currentMode = STRESS_TEST;
+          testInterval = inter;
+          updateParams(sf);
+          Serial.print(<span class="code-string">"\n&gt;&gt;&gt; [極限壓力測試] SF"</span>); Serial.print(sf);
+          Serial.print(<span class="code-string">", Interval "</span>); Serial.print(inter); Serial.println(<span class="code-string">"ms"</span>);
+          lastSendTime = millis() - testInterval; 
+        }
+      }
+    } 
+    <span class="code-keyword">else</span> <span class="code-keyword">if</span> (lowerInput.startsWith(<span class="code-string">"l "</span>)) {
+      <span class="code-type">int</span> len = <span class="code-number">0</span>;
+      <span class="code-keyword">if</span> (sscanf(lowerInput.c_str(), <span class="code-string">"l %d"</span>, &len) == <span class="code-number">1</span>) {
+        <span class="code-keyword">if</span> (len &gt;= <span class="code-number">10</span> && len &lt;= <span class="code-number">256</span>) {
+          targetPayloadLength = len;
+          Serial.print(<span class="code-string">"\n&gt;&gt;&gt; [設定] 目標封包長度已更改為: "</span>); 
+          Serial.print(targetPayloadLength); Serial.println(<span class="code-string">" Bytes"</span>);
+        }
+      }
+    } 
+    <span class="code-keyword">else</span> {
+      <span class="code-type">int</span> sf = input.toInt();
+      <span class="code-keyword">if</span> (sf &gt;= <span class="code-number">6</span> && sf &lt;= <span class="code-number">12</span>) {
+        currentMode = FORMAL_TEST;
+        updateParams(sf);
+        testInterval = getSafeInterval(sf);
+        Serial.print(<span class="code-string">"\n&gt;&gt;&gt; [正式測試階段] SF"</span>); Serial.print(sf);
+        Serial.print(<span class="code-string">", Interval "</span>); Serial.print(testInterval); Serial.println(<span class="code-string">"ms"</span>);
+        lastSendTime = millis() - testInterval; 
+      }
+    }
+  }
+}
+
+<span class="code-type">void</span> updateParams(<span class="code-type">int</span> sf) {
+  currentSF = sf;
+  packetCounter = <span class="code-number">0</span>;
+  LoRa.setSpreadingFactor(sf);
+}
+
+<span class="code-type">void</span> sendPacket() {
+  <span class="code-type">unsigned long</span> start = millis();
+  String payload = <span class="code-string">""</span>;
+  <span class="code-keyword">if</span> (currentMode == PRE_TEST) payload += <span class="code-string">"TST:"</span>;
+  <span class="code-keyword">else</span> <span class="code-keyword">if</span> (currentMode == STRESS_TEST) payload += <span class="code-string">"STR:"</span>;
+  <span class="code-keyword">else</span> payload += <span class="code-string">"FRM:"</span>;
+  
+  payload += String(packetCounter);
+  payload += <span class="code-string">":"</span>;
+  payload += currentUUID;
+
+  <span class="code-keyword">while</span> (payload.length() &lt; (<span class="code-type">size_t</span>)targetPayloadLength) {
+    payload += <span class="code-string">"*"</span>; 
+  }
+
+  LoRa.beginPacket();
+  LoRa.print(payload);
+  LoRa.endPacket(); 
+  <span class="code-type">unsigned long</span> duration = millis() - start;
+
+  Serial.print(currentMode == PRE_TEST ? <span class="code-string">"[PRE]"</span> : (currentMode == STRESS_TEST ? <span class="code-string">"[STRESS]"</span> : <span class="code-string">"[FORM]"</span>));
+  Serial.print(<span class="code-string">" SF"</span>); Serial.print(currentSF);
+  Serial.print(<span class="code-string">" | ID:"</span>); Serial.print(packetCounter);
+  Serial.print(<span class="code-string">" | UUID:"</span>); Serial.print(currentUUID);
+  Serial.print(<span class="code-string">" | Len:"</span>); Serial.print(payload.length()); 
+  Serial.print(<span class="code-string">" | ToA:"</span>); Serial.print(duration); Serial.println(<span class="code-string">"ms"</span>);
+  packetCounter++;
+}
+
+<span class="code-type">unsigned long</span> getSafeInterval(<span class="code-type">int</span> sf) {
+  <span class="code-keyword">if</span> (sf &lt;= <span class="code-number">7</span>) <span class="code-keyword">return</span> <span class="code-number">250</span>;
+  <span class="code-keyword">if</span> (sf == <span class="code-number">8</span>) <span class="code-keyword">return</span> <span class="code-number">500</span>;
+  <span class="code-keyword">if</span> (sf == <span class="code-number">9</span>) <span class="code-keyword">return</span> <span class="code-number">1000</span>;
+  <span class="code-keyword">if</span> (sf == <span class="code-number">10</span>) <span class="code-keyword">return</span> <span class="code-number">2000</span>;
+  <span class="code-keyword">return</span> <span class="code-number">5000</span>;
+}
+
+<span class="code-type">void</span> printMenu() {
+  Serial.println(<span class="code-string">"\n--- 控制指令 ---"</span>);
+  Serial.println(<span class="code-string">"  l [Len]    : 設定封包長度 (預設 256 Bytes)"</span>);
+  Serial.println(<span class="code-string">"  u [UUID]   : 設定當前測試 UUID"</span>);
+  Serial.println(<span class="code-string">"  p          : 環境測試(SF7 慢速發送)"</span>);
+  Serial.println(<span class="code-string">"  6-12       : 正式測試開始(限制發射 100包)"</span>);
+  Serial.println(<span class="code-string">"  s [SF] [I] : 壓力測試(自定義 SF 與發射頻率)"</span>);
+  Serial.println(<span class="code-string">"  x          : 停止發射"</span>);
+}</code></pre>
+
+          <!-- SENDER V6 -->
+          <pre class="code-block" id="code-sender-v6"><code><span class="code-directive">#include &lt;SPI.h&gt;</span>
+<span class="code-directive">#include &lt;LoRa.h&gt;</span>
+
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">// 測試載波頻率配置（請依據當下測試配置切換註解，再進行燒錄）</span>
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">//#define LORA_FREQ   433E6   // 433 MHz 鏈路：配置 3 & 配置 4</span>
+<span class="code-directive">#define LORA_FREQ      915E6</span>   <span class="code-comment">// 915 MHz 鏈路：配置 1 & 配置 2</span>
+
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">// ESP32 硬體腳位配置（發射端 Orion v5/v6 自訂 SPI 腳位）</span>
+<span class="code-comment">// =================================================================</span>
+<span class="code-directive">#define SCK_PIN   18</span>
+<span class="code-directive">#define MISO_PIN  19</span>
+<span class="code-directive">#define MOSI_PIN  23</span>
+<span class="code-directive">#define NSS_PIN   33</span>   <span class="code-comment">// CS 片選</span>
+<span class="code-directive">#define RST_PIN   26</span>   <span class="code-comment">// Reset</span>
+<span class="code-directive">#define DIO0_PIN  13</span>   <span class="code-comment">// 中斷腳位</span>
+
+<span class="code-keyword">enum</span> Mode { IDLE, PRE_TEST, FORMAL_TEST, STRESS_TEST };
+Mode currentMode = IDLE;
+<span class="code-type">int</span> currentSF = <span class="code-number">7</span>;
+<span class="code-type">unsigned long</span> testInterval = <span class="code-number">500</span>; 
+<span class="code-type">unsigned long</span> packetCounter = <span class="code-number">0</span>;
+<span class="code-type">unsigned long</span> lastSendTime = <span class="code-number">0</span>;
+<span class="code-keyword">const</span> <span class="code-type">int</span> packetLimit = <span class="code-number">100</span>;
+<span class="code-type">int</span> targetPayloadLength = <span class="code-number">256</span>; <span class="code-comment">// 配合紀錄表，預設改為 256 Bytes</span>
+String currentUUID = <span class="code-string">"N/A"</span>;    <span class="code-comment">// 儲存當前測試的 UUID</span>
+
+<span class="code-type">void</span> handleSerial();
+<span class="code-type">void</span> sendPacket();
+<span class="code-type">void</span> updateParams(<span class="code-type">int</span> sf);
+<span class="code-type">void</span> printMenu();
+<span class="code-type">unsigned long</span> getSafeInterval(<span class="code-type">int</span> sf); 
+
+<span class="code-type">void</span> setup() {
+  Serial.begin(<span class="code-number">115200</span>);
+  <span class="code-keyword">while</span> (!Serial && millis() &lt; <span class="code-number">3000</span>);
+  delay(<span class="code-number">500</span>);
+  <span class="code-keyword">while</span> (Serial.available() &gt; <span class="code-number">0</span>) {
+    Serial.read();
+  }
+  Serial.setTimeout(<span class="code-number">50</span>);
+  
+  Serial.print(<span class="code-string">"\n=== LoRa 發射端初始化 [頻率: "</span>);
+  Serial.print(LORA_FREQ / <span class="code-number">1E6</span>);
+  Serial.println(<span class="code-string">" MHz] ==="</span>);
+
+  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, NSS_PIN);
+  LoRa.setPins(NSS_PIN , RST_PIN, DIO0_PIN);
+  
+  <span class="code-keyword">if</span> (!LoRa.begin(LORA_FREQ)) { 
+    Serial.println(<span class="code-string">"LoRa 初始化失敗，請確認接線與頻率設定！"</span>); 
+    <span class="code-keyword">while</span>(<span class="code-number">1</span>); 
+  }
+  
+  LoRa.setSignalBandwidth(<span class="code-number">125E3</span>);
+  LoRa.setCodingRate4(<span class="code-number">6</span>);
+  LoRa.setPreambleLength(<span class="code-number">12</span>);
+  LoRa.setSyncWord(<span class="code-number">0xF1</span>);
+  LoRa.enableCrc(); // 【盲點修復】開啟硬體 CRC
+  LoRa.setTxPower(<span class="code-number">20</span>); // 【盲點修復】強制設定最大功率
+  printMenu();
+}
+
+<span class="code-type">void</span> loop() {
+  handleSerial();
+
+  <span class="code-keyword">if</span> (currentMode != IDLE) {
+    <span class="code-keyword">if</span> (millis() - lastSendTime &gt; testInterval) {
+      sendPacket();
+      lastSendTime = millis(); 
+      <span class="code-keyword">if</span> ((currentMode == FORMAL_TEST || currentMode == STRESS_TEST) && packetCounter &gt;= packetLimit) {
+        Serial.println(<span class="code-string">"\n&gt;&gt;&gt; 測試任務完成，回到待機。"</span>);
+        currentMode = IDLE;
+        printMenu();
+      }
+    }
+  }
+}
+
+<span class="code-type">void</span> handleSerial() {
+  <span class="code-keyword">if</span> (Serial.available() &gt; <span class="code-number">0</span>) {
+    String input = Serial.readStringUntil(<span class="code-number">'\n'</span>);
+    input.trim();
+    String lowerInput = input;
+    lowerInput.toLowerCase(); 
+    
+    <span class="code-keyword">if</span> (lowerInput == <span class="code-string">"p"</span>) {
+      currentMode = PRE_TEST;
+      testInterval = <span class="code-number">1000</span>;
+      updateParams(<span class="code-number">7</span>);
+      Serial.println(<span class="code-string">"\n&gt;&gt;&gt; [環境預測量階段] SF7, Interval 1s"</span>);
+      lastSendTime = millis() - testInterval; 
+    } 
+    <span class="code-keyword">else</span> <span class="code-keyword">if</span> (lowerInput == <span class="code-string">"x"</span>) {
+      currentMode = IDLE;
+      Serial.println(<span class="code-string">"\n&gt;&gt;&gt; 已停止。"</span>);
+    } 
+    <span class="code-keyword">else</span> <span class="code-keyword">if</span> (lowerInput.startsWith(<span class="code-string">"u "</span>)) {
+      currentUUID = input.substring(<span class="code-number">2</span>);
+      currentUUID.trim();
+      Serial.print(<span class="code-string">"\n&gt;&gt;&gt; [設定] UUID 已更改為: "</span>);
+      Serial.println(currentUUID);
+    } 
+    <span class="code-keyword">else</span> <span class="code-keyword">if</span> (lowerInput.startsWith(<span class="code-string">"s "</span>)) {
+      <span class="code-type">int</span> sf = <span class="code-number">0</span>, inter = <span class="code-number">0</span>;
+      <span class="code-keyword">if</span> (sscanf(lowerInput.c_str(), <span class="code-string">"s %d %d"</span>, &sf, &inter) == <span class="code-number">2</span>) {
+        <span class="code-keyword">if</span> (sf &gt;= <span class="code-number">6</span> && sf &lt;= <span class="code-number">12</span> && inter &gt; <span class="code-number">0</span>) {
+          currentMode = STRESS_TEST;
+          testInterval = inter;
+          updateParams(sf);
+          Serial.print(<span class="code-string">"\n&gt;&gt;&gt; [極限壓力測試] SF"</span>); Serial.print(sf);
+          Serial.print(<span class="code-string">", Interval "</span>); Serial.print(inter); Serial.println(<span class="code-string">"ms"</span>);
+          lastSendTime = millis() - testInterval; 
+        }
+      }
+    } 
+    <span class="code-keyword">else</span> <span class="code-keyword">if</span> (lowerInput.startsWith(<span class="code-string">"l "</span>)) {
+      <span class="code-type">int</span> len = <span class="code-number">0</span>;
+      <span class="code-keyword">if</span> (sscanf(lowerInput.c_str(), <span class="code-string">"l %d"</span>, &len) == <span class="code-number">1</span>) {
+        <span class="code-keyword">if</span> (len &gt;= <span class="code-number">10</span> && len &lt;= <span class="code-number">256</span>) {
+          targetPayloadLength = len;
+          Serial.print(<span class="code-string">"\n&gt;&gt;&gt; [設定] 目標封包長度已更改為: "</span>); 
+          Serial.print(targetPayloadLength); Serial.println(<span class="code-string">" Bytes"</span>);
+        }
+      }
+    } 
+    <span class="code-keyword">else</span> {
+      <span class="code-type">int</span> sf = input.toInt();
+      <span class="code-keyword">if</span> (sf &gt;= <span class="code-number">6</span> && sf &lt;= <span class="code-number">12</span>) {
+        currentMode = FORMAL_TEST;
+        updateParams(sf);
+        testInterval = getSafeInterval(sf);
+        Serial.print(<span class="code-string">"\n&gt;&gt;&gt; [正式測試階段] SF"</span>); Serial.print(sf);
+        Serial.print(<span class="code-string">", Interval "</span>); Serial.print(testInterval); Serial.println(<span class="code-string">"ms"</span>);
+        lastSendTime = millis() - testInterval; 
+      }
+    }
+  }
+}
+
+<span class="code-type">void</span> updateParams(<span class="code-type">int</span> sf) {
+  currentSF = sf;
+  packetCounter = <span class="code-number">0</span>;
+  LoRa.setSpreadingFactor(sf);
+}
+
+<span class="code-type">void</span> sendPacket() {
+  <span class="code-type">unsigned long</span> start = millis();
+  String payload = <span class="code-string">""</span>;
+  <span class="code-keyword">if</span> (currentMode == PRE_TEST) payload += <span class="code-string">"TST:"</span>;
+  <span class="code-keyword">else</span> <span class="code-keyword">if</span> (currentMode == STRESS_TEST) payload += <span class="code-string">"STR:"</span>;
+  <span class="code-keyword">else</span> payload += <span class="code-string">"FRM:"</span>;
+  
+  payload += String(packetCounter);
+  payload += <span class="code-string">":"</span>;
+  payload += currentUUID;
+
+  <span class="code-keyword">while</span> (payload.length() &lt; (<span class="code-type">size_t</span>)targetPayloadLength) {
+    payload += <span class="code-string">"*"</span>; 
+  }
+
+  LoRa.beginPacket();
+  LoRa.print(payload);
+  LoRa.endPacket(); 
+  <span class="code-type">unsigned long</span> duration = millis() - start;
+
+  Serial.print(currentMode == PRE_TEST ? <span class="code-string">"[PRE]"</span> : (currentMode == STRESS_TEST ? <span class="code-string">"[STRESS]"</span> : <span class="code-string">"[FORM]"</span>));
+  Serial.print(<span class="code-string">" SF"</span>); Serial.print(currentSF);
+  Serial.print(<span class="code-string">" | ID:"</span>); Serial.print(packetCounter);
+  Serial.print(<span class="code-string">" | UUID:"</span>); Serial.print(currentUUID);
+  Serial.print(<span class="code-string">" | Len:"</span>); Serial.print(payload.length()); 
+  Serial.print(<span class="code-string">" | ToA:"</span>); Serial.print(duration); Serial.println(<span class="code-string">"ms"</span>);
+  packetCounter++;
+}
+
+<span class="code-type">unsigned long</span> getSafeInterval(<span class="code-type">int</span> sf) {
+  <span class="code-keyword">if</span> (sf &lt;= <span class="code-number">7</span>) <span class="code-keyword">return</span> <span class="code-number">250</span>;
+  <span class="code-keyword">if</span> (sf == <span class="code-number">8</span>) <span class="code-keyword">return</span> <span class="code-number">500</span>;
+  <span class="code-keyword">if</span> (sf == <span class="code-number">9</span>) <span class="code-keyword">return</span> <span class="code-number">1000</span>;
+  <span class="code-keyword">if</span> (sf == <span class="code-number">10</span>) <span class="code-keyword">return</span> <span class="code-number">2000</span>;
+  <span class="code-keyword">return</span> <span class="code-number">5000</span>;
+}
+
+<span class="code-type">void</span> printMenu() {
+  Serial.println(<span class="code-string">"\n--- 控制指令 ---"</span>);
+  Serial.println(<span class="code-string">"  l [Len]    : 設定封包長度 (預設 256 Bytes)"</span>);
+  Serial.println(<span class="code-string">"  u [UUID]   : 設定當前測試 UUID"</span>);
+  Serial.println(<span class="code-string">"  p          : 環境測試(SF7 慢速發送)"</span>);
+  Serial.println(<span class="code-string">"  6-12       : 正式測試開始(限制發射 100包)"</span>);
+  Serial.println(<span class="code-string">"  s [SF] [I] : 壓力測試(自定義 SF 與發射頻率)"</span>);
+  Serial.println(<span class="code-string">"  x          : 停止發射"</span>);
+}</code></pre>
+
+          <!-- RECEIVER V5 -->
+          <pre class="code-block" id="code-receiver-v5"><code><span class="code-directive">#include &lt;SPI.h&gt;</span>
+<span class="code-directive">#include &lt;LoRa.h&gt;</span>
+
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">// 測試載波頻率配置（接收端需與發射端保持頻段同步）</span>
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">//#define LORA_FREQ   433E6   // 433 MHz 鏈路：配置 3 & 配置 4</span>
+<span class="code-directive">#define LORA_FREQ      915E6</span>
+
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">// ESP32 硬體腳位配置（接收端 Orion v5 自訂 SPI 腳位）</span>
+<span class="code-comment">// =================================================================</span>
+<span class="code-directive">#define SCK_PIN   18</span>
+<span class="code-directive">#define MISO_PIN  19</span>
+<span class="code-directive">#define MOSI_PIN  23</span>
+<span class="code-directive">#define LORA_SS    33</span>   <span class="code-comment">// CS 腳位 (Orion v5)</span>
+<span class="code-directive">#define LORA_RST   26</span>   <span class="code-comment">// Reset 腳位 (Orion v5)</span>
+<span class="code-directive">#define LORA_DIO0  13</span>   <span class="code-comment">// 中斷腳位 (Orion v5)</span>
+
+<span class="code-type">int</span> currentSF = <span class="code-number">7</span>;
+<span class="code-type">void</span> updateParams(<span class="code-type">int</span> sf);
+
+<span class="code-type">void</span> setup() {
+  Serial.begin(<span class="code-number">115200</span>);
+  <span class="code-keyword">while</span> (!Serial && millis() &lt; <span class="code-number">3000</span>);
+  delay(<span class="code-number">500</span>);
+  <span class="code-keyword">while</span> (Serial.available() &gt; <span class="code-number">0</span>) {
+    Serial.read();
+  }
+  Serial.setTimeout(<span class="code-number">50</span>);
+
+  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, LORA_SS);
+  Serial.print(<span class="code-string">"\n=== LoRa 接收端初始化 [頻率: "</span>);
+  Serial.print(LORA_FREQ / <span class="code-number">1E6</span>);
+  Serial.println(<span class="code-string">" MHz] ==="</span>);
+
+  LoRa.setPins(LORA_SS, LORA_RST, LORA_DIO0);
+  <span class="code-keyword">if</span> (!LoRa.begin(LORA_FREQ)) { 
+    Serial.println(<span class="code-string">"LoRa 初始化失敗，請檢查接線與頻率設定！"</span>); 
+    <span class="code-keyword">while</span>(<span class="code-number">1</span>); 
+  }
+  
+  LoRa.setSignalBandwidth(<span class="code-number">125E3</span>);
+  LoRa.setCodingRate4(<span class="code-number">6</span>);
+  LoRa.setPreambleLength(<span class="code-number">12</span>);
+  LoRa.setSyncWord(<span class="code-number">0xF1</span>);
+  LoRa.enableCrc(); // 【盲點修復】開啟硬體 CRC
+  updateParams(<span class="code-number">7</span>);
+
+  Serial.println(<span class="code-string">"\n--- ESP32 接收端指令 ---"</span>);
+  Serial.println(<span class="code-string">"  p    : 同步至 SF7"</span>);
+  Serial.println(<span class="code-string">"  7-12 : 同步至目標 SF"</span>);
+  Serial.println(<span class="code-string">"  r    : 重置統計數據"</span>);
+}
+
+<span class="code-type">void</span> loop() {
+  <span class="code-keyword">if</span> (Serial.available()) {
+    String in = Serial.readStringUntil(<span class="code-number">'\n'</span>); 
+    in.trim();
+    <span class="code-keyword">if</span> (in == <span class="code-string">"p"</span>) {
+      updateParams(<span class="code-number">7</span>);
+    }
+    <span class="code-keyword">else</span> <span class="code-keyword">if</span> (in == <span class="code-string">"r"</span>) {
+      Serial.println(<span class="code-string">"&gt;&gt;&gt; RESET"</span>);
+    }
+    <span class="code-keyword">else</span> { 
+      <span class="code-type">int</span> v = in.toInt(); 
+      <span class="code-keyword">if</span> (v &gt;= <span class="code-number">7</span> && v &lt;= <span class="code-number">12</span>) {
+        updateParams(v);
+      }
+    }
+  }
+
+  <span class="code-type">int</span> packetSize = LoRa.parsePacket();
+  <span class="code-keyword">if</span> (packetSize) {
+    // 【盲點修復】改用 readString() 避免記憶體碎片化
+    String data = LoRa.readString();
+    <span class="code-type">float</span> snr = LoRa.packetSnr();
+    <span class="code-type">int</span> rssi = LoRa.packetRssi();
+
+    Serial.print(<span class="code-string">"+RCV:"</span>);
+    Serial.print(data);
+    Serial.print(<span class="code-string">" | SNR:"</span>);
+    Serial.print(snr);
+    Serial.print(<span class="code-string">" | RSSI:"</span>);
+    Serial.println(rssi);
+  }
+}
+
+<span class="code-type">void</span> updateParams(<span class="code-type">int</span> sf) {
+  currentSF = sf;
+  LoRa.setSpreadingFactor(sf);
+  Serial.println(<span class="code-string">"&gt;&gt;&gt; RESET"</span>);
+  Serial.print(<span class="code-string">"&gt;&gt;&gt; 接收端同步至 SF"</span>); Serial.println(sf);
+}</code></pre>
+
+          <!-- RECEIVER V6 -->
+          <pre class="code-block" id="code-receiver-v6"><code><span class="code-directive">#include &lt;SPI.h&gt;</span>
+<span class="code-directive">#include &lt;LoRa.h&gt;</span>
+
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">// 測試載波頻率配置（接收端需與發射端保持頻段同步）</span>
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">//#define LORA_FREQ   433E6   // 433 MHz 鏈路：配置 3 & 配置 4</span>
+<span class="code-directive">#define LORA_FREQ      915E6</span>
+
+<span class="code-comment">// =================================================================</span>
+<span class="code-comment">// ESP32 硬體腳位配置（接收端 Orion v6 自訂 SPI 腳位）</span>
+<span class="code-comment">// =================================================================</span>
+<span class="code-directive">#define SCK_PIN   18</span>
+<span class="code-directive">#define MISO_PIN  19</span>
+<span class="code-directive">#define MOSI_PIN  23</span>
+<span class="code-directive">#define LORA_SS    33</span>   <span class="code-comment">// CS 腳位 (Orion v5/v6)</span>
+<span class="code-directive">#define LORA_RST   26</span>   <span class="code-comment">// Reset 腳位 (Orion v5/v6)</span>
+<span class="code-directive">#define LORA_DIO0  13</span>   <span class="code-comment">// 中斷腳位 (Orion v5/v6)</span>
+
+<span class="code-type">int</span> currentSF = <span class="code-number">7</span>;
+<span class="code-type">void</span> updateParams(<span class="code-type">int</span> sf);
+
+<span class="code-type">void</span> setup() {
+  Serial.begin(<span class="code-number">115200</span>);
+  <span class="code-keyword">while</span> (!Serial && millis() &lt; <span class="code-number">3000</span>);
+  delay(<span class="code-number">500</span>);
+  <span class="code-keyword">while</span> (Serial.available() &gt; <span class="code-number">0</span>) {
+    Serial.read();
+  }
+  Serial.setTimeout(<span class="code-number">50</span>);
+
+  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, LORA_SS);
+  Serial.print(<span class="code-string">"\n=== LoRa 接收端初始化 [頻率: "</span>);
+  Serial.print(LORA_FREQ / <span class="code-number">1E6</span>);
+  Serial.println(<span class="code-string">" MHz] ==="</span>);
+
+  LoRa.setPins(LORA_SS, LORA_RST, LORA_DIO0);
+  <span class="code-keyword">if</span> (!LoRa.begin(LORA_FREQ)) { 
+    Serial.println(<span class="code-string">"LoRa 初始化失敗，請檢查接線與頻率設定！"</span>); 
+    <span class="code-keyword">while</span>(<span class="code-number">1</span>); 
+  }
+  
+  LoRa.setSignalBandwidth(<span class="code-number">125E3</span>);
+  LoRa.setCodingRate4(<span class="code-number">6</span>);
+  LoRa.setPreambleLength(<span class="code-number">12</span>);
+  LoRa.setSyncWord(<span class="code-number">0xF1</span>);
+  LoRa.enableCrc(); // 【盲點修復】開啟硬體 CRC
+  updateParams(<span class="code-number">7</span>);
+
+  Serial.println(<span class="code-string">"\n--- ESP32 接收端指令 ---"</span>);
+  Serial.println(<span class="code-string">"  p    : 同步至 SF7"</span>);
+  Serial.println(<span class="code-string">"  7-12 : 同步至目標 SF"</span>);
+  Serial.println(<span class="code-string">"  r    : 重置統計數據"</span>);
+}
+
+<span class="code-type">void</span> loop() {
+  <span class="code-keyword">if</span> (Serial.available()) {
+    String in = Serial.readStringUntil(<span class="code-number">'\n'</span>); 
+    in.trim();
+    <span class="code-keyword">if</span> (in == <span class="code-string">"p"</span>) {
+      updateParams(<span class="code-number">7</span>);
+    }
+    <span class="code-keyword">else</span> <span class="code-keyword">if</span> (in == <span class="code-string">"r"</span>) {
+      Serial.println(<span class="code-string">"&gt;&gt;&gt; RESET"</span>);
+    }
+    <span class="code-keyword">else</span> { 
+      <span class="code-type">int</span> v = in.toInt(); 
+      <span class="code-keyword">if</span> (v &gt;= <span class="code-number">7</span> && v &lt;= <span class="code-number">12</span>) {
+        updateParams(v);
+      }
+    }
+  }
+
+  <span class="code-type">int</span> packetSize = LoRa.parsePacket();
+  <span class="code-keyword">if</span> (packetSize) {
+    // 【盲點修復】改用 readString() 避免記憶體碎片化
+    String data = LoRa.readString();
+    <span class="code-type">float</span> snr = LoRa.packetSnr();
+    <span class="code-type">int</span> rssi = LoRa.packetRssi();
+
+    Serial.print(<span class="code-string">"+RCV:"</span>);
+    Serial.print(data);
+    Serial.print(<span class="code-string">" | SNR:"</span>);
+    Serial.print(snr);
+    Serial.print(<span class="code-string">" | RSSI:"</span>);
+    Serial.println(rssi);
+  }
+}
+
+<span class="code-type">void</span> updateParams(<span class="code-type">int</span> sf) {
+  currentSF = sf;
+  LoRa.setSpreadingFactor(sf);
+  Serial.println(<span class="code-string">"&gt;&gt;&gt; RESET"</span>);
+  Serial.print(<span class="code-string">"&gt;&gt;&gt; 接收端同步至 SF"</span>); Serial.println(sf);
+}</code></pre>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  // Initialize Lucide Icons
+  lucide.createIcons();
+
+  // Navigation switching
+  function switchSection(sectionId, element) {
+    document.querySelectorAll('.content-section').forEach(section => {
+      section.classList.remove('active');
+    });
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.classList.remove('active');
+    });
+
+    document.getElementById(sectionId).classList.add('active');
+    element.classList.add('active');
+
+    // Title / Subtitle updates
+    const titleEl = document.getElementById('section-title');
+    const subtitleEl = document.getElementById('section-subtitle');
+
+    if (sectionId === 'overview') {
+      titleEl.innerText = '測試準備審查報告 (TRR)';
+      subtitleEl.innerText = 'LoRa 遠距離實地通訊效能測試系統面板';
+    } else if (sectionId === 'hardware') {
+      titleEl.innerText = '系統硬體腳位對照';
+      subtitleEl.innerText = 'Orion v5 與 Orion v6 ESP32 接線詳細定義';
+    } else if (sectionId === 'matrix') {
+      titleEl.innerText = '通訊鏈路測試數據矩陣';
+      subtitleEl.innerText = '實作測量參數計算與 CSV 下載';
+    } else if (sectionId === 'guide') {
+      titleEl.innerText = '測試標準操作規程 (SOP)';
+      subtitleEl.innerText = 'LoRa RF 現場雙向測量實施指南';
+    } else if (sectionId === 'code') {
+      titleEl.innerText = '測試韌體代碼備份';
+      subtitleEl.innerText = '發射端與接收端多版本原始碼瀏覽與複製';
+    }
+  }
+
+  // Theme Toggler
+  function toggleTheme() {
+    document.body.classList.toggle('light-mode');
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+    
+    if (document.body.classList.contains('light-mode')) {
+      themeIcon.setAttribute('data-lucide', 'moon');
+      themeText.innerText = '切換暗色模式';
+    } else {
+      themeIcon.setAttribute('data-lucide', 'sun');
+      themeText.innerText = '切換亮色模式';
+    }
+    lucide.createIcons();
+  }
+
+  // Code tab switcher
+  function switchCodeTab(tabId, element) {
+    document.querySelectorAll('.code-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.code-block').forEach(block => block.classList.remove('active'));
+
+    element.classList.add('active');
+    document.getElementById('code-' + tabId).classList.add('active');
+  }
+
+  // Copy code utility
+  function copyCurrentCodeBlock() {
+    const activeCode = document.querySelector('.code-block.active');
+    if (activeCode) {
+      navigator.clipboard.writeText(activeCode.innerText);
+      alert('已成功複製該程式碼檔案到剪貼簿！');
+    }
+  }
+
+  function copyText(text) {
+    navigator.clipboard.writeText(text);
+    alert('已複製指令: ' + text);
+  }
+
+  // Interactive Test Matrix Math
+  function calculateAverages(tableId) {
+    const table = document.getElementById(tableId);
+    const metrics = ['loss', 'snr', 'rssi'];
+    
+    metrics.forEach(metric => {
+      const row = table.querySelector(`tr[data-metric="${metric}"]`);
+      const inputs = Array.from(row.querySelectorAll('.input-cell input')).slice(0, 6); // Only first 6 runs
+      
+      let sum = 0;
+      let count = 0;
+      
+      inputs.forEach(input => {
+        if (input.value !== '') {
+          sum += parseFloat(input.value);
+          count++;
+        }
+      });
+      
+      const avgCell = row.querySelector('[data-avg]');
+      if (count > 0) {
+        let avg = sum / count;
+        if (metric === 'rssi') {
+          avgCell.innerText = Math.round(avg) + ' dBm';
+        } else {
+          avgCell.innerText = avg.toFixed(2) + (metric === 'loss' ? ' %' : ' dB');
+        }
+      } else {
+        avgCell.innerText = '-';
+      }
+    });
+
+    // Update status badge when some data is entered
+    document.getElementById('status-badge').className = 'system-status';
+    document.getElementById('status-text').innerText = '測試進行中 (Testing in Progress)';
+    updateChartData();
+  }
+
+  // Preset Mock Data for demonstrations
+  function fillMockData() {
+    const mockData = {
+      'table-config-1': {
+        loss: [0, 0, 0, 0, 0.5, 0, 1.2, 2.5],
+        snr: [8.5, 8.2, 7.9, 8.8, 8.1, 8.4, 6.2, 4.1],
+        rssi: [-92, -94, -91, -93, -95, -92, -104, -112]
+      },
+      'table-config-2': {
+        loss: [0, 0.2, 0, 0.1, 0, 0, 1.8, 3.1],
+        snr: [7.8, 8.1, 8.0, 7.9, 8.2, 8.3, 5.8, 3.5],
+        rssi: [-95, -93, -94, -96, -93, -94, -108, -115]
+      },
+      'table-config-3': {
+        loss: [0, 0, 0, 0, 0, 0, 0.8, 1.5],
+        snr: [10.2, 9.8, 10.5, 9.9, 10.1, 10.3, 8.2, 5.9],
+        rssi: [-82, -85, -81, -84, -83, -82, -91, -98]
+      },
+      'table-config-4': {
+        loss: [0, 0, 0.1, 0, 0, 0, 0.9, 1.8],
+        snr: [9.5, 9.2, 9.4, 9.7, 9.1, 9.3, 7.6, 5.2],
+        rssi: [-85, -87, -84, -86, -88, -85, -94, -101]
+      }
+    };
+
+    Object.keys(mockData).forEach(tableId => {
+      const table = document.getElementById(tableId);
+      const metrics = ['loss', 'snr', 'rssi'];
+      
+      metrics.forEach(metric => {
+        const row = table.querySelector(`tr[data-metric="${metric}"]`);
+        const inputs = row.querySelectorAll('.input-cell input');
+        const vals = mockData[tableId][metric];
+        
+        for (let i = 0; i < inputs.length; i++) {
+          if (inputs[i] && vals[i] !== undefined) {
+            inputs[i].value = vals[i];
+          }
+        }
+      });
+      calculateAverages(tableId);
+    });
+
+    alert('成功匯入預設實地測試效能展示數據！可切換至「效能分析圖」預覽視覺化結果。');
+  }
+
+
+  // CSV Import Logic (Parse logs from rf_test_manager.py)
+  function handleCSVImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const lines = text.split('\n');
+      if (lines.length < 2) {
+        alert("CSV 檔案格式錯誤或為空");
+        return;
+      }
+      
+      let snrSum = 0, rssiSum = 0, maxLoss = 0;
+      let count = 0;
+      
+      for(let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        if (cols.length >= 7) {
+          const snr = parseFloat(cols[4]);
+          const rssi = parseFloat(cols[5]);
+          const loss = parseFloat(cols[6]);
+          
+          if(!isNaN(snr) && !isNaN(rssi) && !isNaN(loss)) {
+            snrSum += snr;
+            rssiSum += rssi;
+            if(loss > maxLoss) maxLoss = loss;
+            count++;
+          }
+        }
+      }
+      
+      if(count > 0) {
+        const avgSnr = (snrSum / count).toFixed(1);
+        const avgRssi = (rssiSum / count).toFixed(1);
+        const finalLoss = maxLoss.toFixed(2);
+        
+        const configStr = prompt(`解析成功！\n平均 SNR: ${avgSnr} dB\n平均 RSSI: ${avgRssi} dBm\n最終丟包率: ${finalLoss}%\n\n請輸入要填寫的配置編號 (1~4):`, "1");
+        
+        const configId = parseInt(configStr);
+        if(configId >= 1 && configId <= 4) {
+           const tableId = 'table-config-' + configId;
+           const table = document.getElementById(tableId);
+           
+           // Fill the first run input as the test result
+           const lossInput = table.querySelector(`tr[data-metric="loss"] .input-cell input`);
+           const snrInput = table.querySelector(`tr[data-metric="snr"] .input-cell input`);
+           const rssiInput = table.querySelector(`tr[data-metric="rssi"] .input-cell input`);
+           
+           if(lossInput) lossInput.value = finalLoss;
+           if(snrInput) snrInput.value = avgSnr;
+           if(rssiInput) rssiInput.value = avgRssi;
+           
+           calculateAverages(tableId);
+           alert(`已將數據匯入至 配置 ${configId}`);
+        }
+      } else {
+        alert("找不到有效的測試數據行。請確保這是由 rf_test_manager 產生的 received_packets CSV。");
+      }
+    };
+    reader.readAsText(file);
+    // Reset input so the same file can be selected again
+    event.target.value = '';
+  }
+
+  // Export Data Matrix to CSV
+  function exportCSV() {
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    
+    const configurations = [
+      { id: 'table-config-1', desc: 'RF = 7 / 915 MHz / 256 bytes,社長家（八木）--> 望高寮（鞭型）' },
+      { id: 'table-config-2', desc: 'RF = 7 / 915 MHz / 256 bytes,社長家（八木）<-- 望高寮（鞭型）' },
+      { id: 'table-config-3', desc: 'RF = 7 / 433 MHz / 256 bytes,社長家（八木）--> 望高寮（鞭型）' },
+      { id: 'table-config-4', desc: 'RF = 7 / 433 MHz / 256 bytes,社長家（八木）<-- 望高寮（鞭型）' }
+    ];
+
+    configurations.forEach(config => {
+      csvContent += `"${config.desc}",,,,,,,平均,,` + "\r\n";
+      csvContent += ",No. 1,No. 2,No. 3,No. 4,No. 5,No. 6,,極化：30,極化：45" + "\r\n";
+      
+      const table = document.getElementById(config.id);
+      const metrics = ['loss', 'snr', 'rssi'];
+      const metricLabels = { loss: '丟包率(%)', snr: 'SNR', rssi: 'RSSI' };
+
+      metrics.forEach(metric => {
+        const row = table.querySelector(`tr[data-metric="${metric}"]`);
+        const inputs = Array.from(row.querySelectorAll('.input-cell input'));
+        const avg = row.querySelector('[data-avg]').innerText.replace(/[^\d\.-]/g, '');
+
+        let valuesLine = `${metricLabels[metric]}`;
+        // Add 6 standard runs
+        for (let i = 0; i < 6; i++) {
+          valuesLine += `,${inputs[i].value}`;
+        }
+        // Add space & Average
+        valuesLine += `,${avg}`;
+        // Add polarization 30 & 45
+        valuesLine += `,${inputs[6].value},${inputs[7].value}`;
+        csvContent += valuesLine + "\r\n";
+      });
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "通訊測試紀錄表_已填寫.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // Setup Visual Chart.js rendering
+  let perfChart;
+  function initChart() {
+    const ctx = document.getElementById('performanceChart').getContext('2d');
+    perfChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['配置 1 (915MHz ➔)', '配置 2 (915MHz 密)', '配置 3 (433MHz ➔)', '配置 4 (433MHz 密)'],
+        datasets: [
+          {
+            label: '平均 RSSI (dBm)',
+            data: [0, 0, 0, 0],
+            backgroundColor: 'rgba(6, 182, 212, 0.4)',
+            borderColor: '#06b6d4',
+            borderWidth: 2,
+            yAxisID: 'y-rssi',
+            borderRadius: 4
+          },
+          {
+            label: '平均 SNR (dB)',
+            data: [0, 0, 0, 0],
+            backgroundColor: 'rgba(139, 92, 246, 0.4)',
+            borderColor: '#8b5cf6',
+            borderWidth: 2,
+            yAxisID: 'y-snr',
+            borderRadius: 4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          'y-rssi': {
+            type: 'linear',
+            position: 'left',
+            title: {
+              display: true,
+              text: 'RSSI (dBm)',
+              color: '#94a3b8'
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.05)'
+            },
+            ticks: {
+              color: '#94a3b8'
+            },
+            suggestedMin: -120,
+            suggestedMax: 0
+          },
+          'y-snr': {
+            type: 'linear',
+            position: 'right',
+            title: {
+              display: true,
+              text: 'SNR (dB)',
+              color: '#94a3b8'
+            },
+            grid: {
+              drawOnChartArea: false // prevent grid line overlap
+            },
+            ticks: {
+              color: '#94a3b8'
+            },
+            suggestedMin: -20,
+            suggestedMax: 15
+          },
+          x: {
+            grid: {
+              color: 'rgba(255, 255, 255, 0.05)'
+            },
+            ticks: {
+              color: '#94a3b8'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              color: '#f8fafc'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function updateChartData() {
+    if (!perfChart) return;
+
+    const rssiData = [];
+    const snrData = [];
+
+    for (let i = 1; i <= 4; i++) {
+      const table = document.getElementById(`table-config-${i}`);
+      
+      const rssiAvgText = table.querySelector('tr[data-metric="rssi"] [data-avg]').innerText;
+      const rssiVal = parseFloat(rssiAvgText.replace(/[^\d\.-]/g, '')) || 0;
+      rssiData.push(rssiVal);
+
+      const snrAvgText = table.querySelector('tr[data-metric="snr"] [data-avg]').innerText;
+      const snrVal = parseFloat(snrAvgText.replace(/[^\d\.-]/g, '')) || 0;
+      snrData.push(snrVal);
+    }
+
+    perfChart.data.datasets[0].data = rssiData;
+    perfChart.data.datasets[1].data = snrData;
+    perfChart.update();
+  }
+
+  // Load chart on DOM Content Ready
+  document.addEventListener('DOMContentLoaded', () => {
+    initChart();
+  });
+</script>
+
+</body>
+</html>

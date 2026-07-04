@@ -8,6 +8,7 @@ platforms = ["osx-arm64", "osx-64", "win-64", "linux-64"]
 [tasks]
 run = "python rf_test_manager.py"
 run-w = "python rf_test_manager_w.py"
+gui = "python rf_test_manager_gui.py"
 
 [dependencies]
 python = ">=3.9"

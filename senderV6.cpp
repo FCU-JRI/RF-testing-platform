@@ -1,21 +1,11 @@
-#include <SPI.h>
-#include <LoRa.h>
+#include <Arduino.h>
+#include "LoRaDriver.hpp"
 
 // =================================================================
 // 測試載波頻率配置（請依據當下測試配置切換註解，再進行燒錄）
 // =================================================================
 //#define LORA_FREQ   433E6   // 433 MHz 鏈路：配置 3 & 配置 4
 #define LORA_FREQ      915E6   // 915 MHz 鏈路：配置 1 & 配置 2
-
-// =================================================================
-// ESP32 硬體腳位配置（發射端 Orion v5/v6 自訂 SPI 腳位）
-// =================================================================
-#define SCK_PIN   18
-#define MISO_PIN  19
-#define MOSI_PIN  23
-#define NSS_PIN   33   // CS 片選
-#define RST_PIN   26   // Reset
-#define DIO0_PIN  13   // 中斷腳位
 
 enum Mode { IDLE, PRE_TEST, FORMAL_TEST, STRESS_TEST };
 Mode currentMode = IDLE;
@@ -47,21 +37,15 @@ void setup() {
   Serial.print(LORA_FREQ / 1E6);
   Serial.println(" MHz] ===");
 
-  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, NSS_PIN);
-  LoRa.setPins(NSS_PIN , RST_PIN, DIO0_PIN);
+  lora_init(LORA_FREQ);
   
-  if (!LoRa.begin(LORA_FREQ)) { 
-    Serial.println("LoRa 初始化失敗，請確認接線與頻率設定！"); 
-    while(1); 
-  }
+  lora_set_bandwidth(125000);
+  lora_set_coding_rate(6);
+  lora_set_preamble_length(12);
+  lora_set_sync_word(0xF1);
+  lora_enable_crc();      // 【盲點修復】開啟硬體 CRC 避免接收端收到損壞封包
+  lora_set_tx_power(20);   // 【盲點修復】強制設定為最大 20dBm 功率，穩定長距測試基線
   
-  LoRa.setSignalBandwidth(125E3);
-  LoRa.setCodingRate4(6);
-  LoRa.setPreambleLength(12);
-  LoRa.setSyncWord(0xF1);
-  LoRa.enableCrc();      // 【盲點修復】開啟硬體 CRC 避免接收端收到損壞封包
-  LoRa.setTxPower(20);   // 【盲點修復】強制設定為最大 20dBm 功率，穩定長距測試基線
-  //LoRa.setTxPower(-30);
   printMenu();
 }
 
@@ -153,24 +137,24 @@ void handleSerial() {
     } else if (lowerInput.startsWith("f ")) {
       long freq = 0;
       if (sscanf(lowerInput.c_str(), "f %ld", &freq) == 1) {
-        LoRa.idle();
-        LoRa.setFrequency(freq);
+        lora_idle();
+        lora_set_frequency(freq);
         Serial.print("+SET_OK: Freq="); 
         Serial.print(freq / 1E6); Serial.println("MHz");
       }
     } else if (lowerInput.startsWith("b ")) {
       long bw = 0;
       if (sscanf(lowerInput.c_str(), "b %ld", &bw) == 1) {
-        LoRa.idle();
-        LoRa.setSignalBandwidth(bw);
+        lora_idle();
+        lora_set_bandwidth(bw);
         Serial.print("+SET_OK: BW="); 
         Serial.println(bw);
       }
     } else if (lowerInput.startsWith("c ")) {
       int cr = 0;
       if (sscanf(lowerInput.c_str(), "c %d", &cr) == 1) {
-        LoRa.idle();
-        LoRa.setCodingRate4(cr);
+        lora_idle();
+        lora_set_coding_rate(cr);
         Serial.print("+SET_OK: CR=4/"); 
         Serial.println(cr);
       }
@@ -200,8 +184,8 @@ void handleSerial() {
 void updateParams(int sf) {
   currentSF = sf;
   packetCounter = 0;
-  LoRa.idle();
-  LoRa.setSpreadingFactor(sf);
+  lora_idle();
+  lora_set_spreading_factor(sf);
 }
 
 void sendPacket() {
@@ -223,13 +207,9 @@ void sendPacket() {
   }
 
   // 封包實際發射
-  if (currentSF == 6) {
-    LoRa.beginPacket(true); // Implicit header (SF6 必須)
-  } else {
-    LoRa.beginPacket();
-  }
-  LoRa.print(payload);
-  LoRa.endPacket(); 
+  bool implicit = (currentSF == 6);
+  lora_send((const uint8_t*)payload.c_str(), payload.length(), implicit);
+  
   unsigned long duration = millis() - start;
 
   Serial.print(currentMode == PRE_TEST ? "[PRE]" : (currentMode == STRESS_TEST ? "[STRESS]" : "[FORM]"));

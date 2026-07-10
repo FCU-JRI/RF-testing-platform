@@ -1,21 +1,11 @@
-#include <SPI.h>
-#include <LoRa.h>
+#include <Arduino.h>
+#include "LoRaDriver.hpp"
 
 // =================================================================
 // 測試載波頻率配置（接收端需與發射端保持頻段同步）
 // =================================================================
 #define LORA_FREQ   433E6   // 433 MHz 鏈路：配置 3 & 配置 4
 //#define LORA_FREQ      915E6   // 915 MHz 鏈路：配置 1 & 配置 2
-
-// =================================================================
-// ESP32 硬體腳位配置（接收端 Orion v6 自訂 SPI 腳位）
-// =================================================================
-#define SCK_PIN   18
-#define MISO_PIN  19
-#define MOSI_PIN  23
-#define LORA_SS    33   // CS 腳位 (Orion v5/v6)
-#define LORA_RST   26   // Reset 腳位 (Orion v5/v6)
-#define LORA_DIO0  13   // 中斷腳位 (Orion v5/v6)
 
 int currentSF = 7;
 int targetPayloadLength = 255; // SF6 必須提前約定封包長度
@@ -31,23 +21,17 @@ void setup() {
   }
   Serial.setTimeout(50); // 縮短超時時間，避免雜訊導致 loop 長時間阻塞
 
-  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, LORA_SS);
   Serial.print("\n=== LoRa 接收端初始化 [頻率: ");
   Serial.print(LORA_FREQ / 1E6);
   Serial.println(" MHz] ===");
 
-  LoRa.setPins(LORA_SS, LORA_RST, LORA_DIO0);
+  lora_init(LORA_FREQ);
   
-  if (!LoRa.begin(LORA_FREQ)) { 
-    Serial.println("LoRa 初始化失敗，請檢查接線與頻率設定！"); 
-    while(1); 
-  }
-  
-  LoRa.setSignalBandwidth(125E3);
-  LoRa.setCodingRate4(6);
-  LoRa.setPreambleLength(12);
-  LoRa.setSyncWord(0xF1);
-  LoRa.enableCrc();      // 【盲點修復】開啟硬體 CRC 攔截損壞的 RF 封包
+  lora_set_bandwidth(125000);
+  lora_set_coding_rate(6);
+  lora_set_preamble_length(12);
+  lora_set_sync_word(0xF1);
+  lora_enable_crc();      // 【盲點修復】開啟硬體 CRC 攔截損壞的 RF 封包
   
   updateParams(7);
 
@@ -87,8 +71,8 @@ void loop() {
     else if (in.startsWith("f ")) {
       long freq = 0;
       if (sscanf(in.c_str(), "f %ld", &freq) == 1) {
-        LoRa.idle();
-        LoRa.setFrequency(freq);
+        lora_idle();
+        lora_set_frequency(freq);
         Serial.print("+SET_OK: Freq="); 
         Serial.print(freq / 1E6); Serial.println("MHz");
       }
@@ -96,8 +80,8 @@ void loop() {
     else if (in.startsWith("b ")) {
       long bw = 0;
       if (sscanf(in.c_str(), "b %ld", &bw) == 1) {
-        LoRa.idle();
-        LoRa.setSignalBandwidth(bw);
+        lora_idle();
+        lora_set_bandwidth(bw);
         Serial.print("+SET_OK: BW="); 
         Serial.println(bw);
       }
@@ -105,8 +89,8 @@ void loop() {
     else if (in.startsWith("c ")) {
       int cr = 0;
       if (sscanf(in.c_str(), "c %d", &cr) == 1) {
-        LoRa.idle();
-        LoRa.setCodingRate4(cr);
+        lora_idle();
+        lora_set_coding_rate(cr);
         Serial.print("+SET_OK: CR=4/"); 
         Serial.println(cr);
       }
@@ -128,27 +112,18 @@ void loop() {
       }
     }
   }
+  
   // 處理 LoRa 接收封包
-  int packetSize = 0;
-  if (currentSF == 6) {
-    packetSize = LoRa.parsePacket(targetPayloadLength); // SF6 必須指定預期長度
-  } else {
-    packetSize = LoRa.parsePacket();
-  }
+  uint8_t buf[256];
+  int expected_length = (currentSF == 6) ? targetPayloadLength : 0;
+  int packetSize = lora_receive(buf, sizeof(buf) - 1, expected_length);
   
   if (packetSize > 0) {
-    // 【重大修正】不可使用 readString()！它會觸發 Stream 預設的 1000ms 超時阻塞。
-    // 使用固定長度陣列（Buffer）讀取，既能防止 Heap 碎片化，又達到零阻塞。
-    char buf[256];
-    int i = 0;
-    while (LoRa.available() && i < 255) {
-      buf[i++] = (char)LoRa.read();
-    }
-    buf[i] = '\0';
-    String data = String(buf);
+    buf[packetSize] = '\0';
+    String data = String((char*)buf);
     
-    float snr = LoRa.packetSnr();
-    int rssi = LoRa.packetRssi();
+    float snr = lora_packet_snr();
+    int rssi = lora_packet_rssi();
 
     Serial.print("+RCV:");
     Serial.print(data);
@@ -163,7 +138,7 @@ void loop() {
 
 void updateParams(int sf) {
   currentSF = sf;
-  LoRa.idle();
-  LoRa.setSpreadingFactor(sf);
+  lora_idle();
+  lora_set_spreading_factor(sf);
   Serial.print(">>> 接收端同步至 SF"); Serial.println(sf);
 }

@@ -69,45 +69,6 @@ def select_port():
     return DEFAULT_PORT
 
 
-def set_frequency_in_file(filepath, freq_mhz):
-    """Edits the C++ file to configure the selected carrier frequency."""
-    if not os.path.exists(filepath):
-        print(f"[ERROR] File not found: {filepath}")
-        return False
-        
-    with open(filepath, 'r', encoding='utf-8') as f:
-        content = f.read()
-        
-    lines = content.splitlines()
-    new_lines = []
-    frequency_updated = False
-    
-    for line in lines:
-        if 'LORA_FREQ' in line and ('433E6' in line or '915E6' in line):
-            frequency_updated = True
-            if freq_mhz == 433:
-                if '433E6' in line:
-                    new_lines.append("#define LORA_FREQ   433E6   // 433 MHz 鏈路：配置 3 & 配置 4")
-                else:
-                    new_lines.append("// #define LORA_FREQ      915E6   // 915 MHz 鏈路：配置 1 & 配置 2")
-            elif freq_mhz == 915:
-                if '433E6' in line:
-                    new_lines.append("// #define LORA_FREQ   433E6   // 433 MHz 鏈路：配置 3 & 配置 4")
-                else:
-                    new_lines.append("#define LORA_FREQ      915E6   // 915 MHz 鏈路：配置 1 & 配置 2")
-        else:
-            new_lines.append(line)
-            
-    if not frequency_updated:
-        print("[WARNING] Frequency configuration lines not found in file. Skipping frequency edit.")
-        return False
-        
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(new_lines) + '\n')
-    print(f"[INFO] Successfully configured file for {freq_mhz} MHz carrier frequency.")
-    return True
-
-
 def flash_firmware():
     """Handles file sandboxing, frequency switching, compilation, and uploading via PlatformIO."""
     global DEFAULT_PORT
@@ -117,24 +78,7 @@ def flash_firmware():
             print("[ERROR] No port selected. Flashing aborted.")
             return False
             
-    print("\n--- Select Board Type to Flash ---")
-    print("  1) Sender (發射端)")
-    print("  2) Receiver (接收端)")
-    board_choice = input("Enter choice (1-2) [Default: 1]: ").strip()
-    board_type = "receiver" if board_choice == "2" else "sender"
-    
-    print("\n--- Select Board Hardware Version ---")
-    print("  1) Orion v6 (NSS=33, RST=26, DIO0=13) [Default]")
-    print("  2) Orion v5 (NSS=33, RST=26, DIO0=13)")
-    ver_choice = input("Enter choice (1-2) [Default: 1]: ").strip()
-    ver_suffix = "V5" if ver_choice == "2" else "V6"
-    
-    print("\n--- Select Carrier Frequency ---")
-    print("  1) 433 MHz (Config 3 & 4)")
-    print("  2) 915 MHz (Config 1 & 2)")
-    freq_choice = input("Enter choice (1-2) [Default: 2]: ").strip()
-    freq_mhz = 433 if freq_choice == "1" else 915
-    
+
     # Manage the PlatformIO 'src/' compilation directory
     src_dir = os.path.abspath('src')
     os.makedirs(src_dir, exist_ok=True)
@@ -145,8 +89,8 @@ def flash_firmware():
             os.remove(os.path.join(src_dir, filename))
             
     # Source master file
-    master_file = f"{board_type}{ver_suffix}.cpp"
-    sandbox_file = os.path.join(src_dir, f"{board_type}{ver_suffix}.cpp")
+    master_file = "rfTestV6.cpp"
+    sandbox_file = os.path.join(src_dir, master_file)
     
     if not os.path.exists(master_file):
         print(f"[ERROR] Master file {master_file} not found in workspace root!")
@@ -155,11 +99,7 @@ def flash_firmware():
     import shutil
     shutil.copy2(master_file, sandbox_file)
     
-    # Configure frequency in the sandboxed file
-    set_frequency_in_file(sandbox_file, freq_mhz)
-    
-    print(f"\n[INFO] Starting compile and upload for: {board_type.upper()} ({ver_suffix})")
-    print(f"[INFO] Target frequency: {freq_mhz} MHz")
+    print(f"\n[INFO] Starting compile and upload for: rfTestV6")
     print(f"[INFO] Upload Port: {DEFAULT_PORT}")
     print("[INFO] Running: pio run -t upload\n")
     
@@ -171,7 +111,7 @@ def flash_firmware():
             print(line, end='')
         process.wait()
         if process.returncode == 0:
-            print(f"\n[SUCCESS] Flashing {board_type.upper()} ({ver_suffix}) completed successfully!")
+            print(f"\n[SUCCESS] Flashing rfTestV6 completed successfully!")
             return True
         else:
             print(f"\n[ERROR] PlatformIO compilation/upload failed with code: {process.returncode}")

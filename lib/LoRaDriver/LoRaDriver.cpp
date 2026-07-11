@@ -74,6 +74,11 @@ void lora_init(uint32_t frequency) {
     write_reg(0x0E, 0); // RegFifoTxBaseAddr
 
     lora_idle();
+    
+    // Enable LNA Boost (for HF bands) to improve sensitivity
+    uint8_t lna = read_reg(0x0C);
+    write_reg(0x0C, lna | 0x03);
+
     ESP_LOGI(TAG, "LoRa initialized at %lu Hz", frequency);
 }
 
@@ -134,6 +139,15 @@ void lora_set_spreading_factor(int sf) {
     uint8_t config2 = read_reg(0x1E);
     config2 = (config2 & 0x0F) | (sf << 4);
     write_reg(0x1E, config2);
+    
+    uint8_t config3 = read_reg(0x26);
+    if (sf >= 11) {
+        config3 |= 0x08; // LowDataRateOptimize
+    } else {
+        config3 &= ~0x08;
+    }
+    config3 |= 0x04; // AgcAutoOn
+    write_reg(0x26, config3);
 }
 
 void lora_set_preamble_length(long length) {
@@ -154,7 +168,7 @@ void lora_set_tx_power(int level) {
     if (level > 17) {
         if (level > 20) level = 20;
         level -= 3;
-        write_reg(0x09, 0x8F); // PA_BOOST
+        write_reg(0x09, 0x80 | (level - 2)); // PA_BOOST
         write_reg(0x4D, 0x87); // PA_DAC high power
     } else {
         if (level < 2) level = 2;
@@ -179,10 +193,11 @@ void lora_send(const uint8_t* data, size_t len, bool implicit_header) {
     
     write_reg(0x22, len); // RegPayloadLength
 
+    write_reg(0x12, 0xFF); // Clear all IRQs before transmitting
     write_reg(0x01, 0x83); // TX mode
     uint32_t start = xTaskGetTickCount();
     while ((read_reg(0x12) & 0x08) == 0) {
-        if ((xTaskGetTickCount() - start) > pdMS_TO_TICKS(500)) break;
+        if ((xTaskGetTickCount() - start) > pdMS_TO_TICKS(20000)) break; // 20s timeout
         vTaskDelay(pdMS_TO_TICKS(5));
     }
     write_reg(0x12, 0x08); // Clear IRQ

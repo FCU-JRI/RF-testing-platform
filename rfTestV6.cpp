@@ -1,5 +1,8 @@
 #include <Arduino.h>
 #include "LoRaDriver.hpp"
+#include <Preferences.h>
+
+Preferences prefs;
 
 // =================================================================
 // 測試載波頻率配置（請依據當下測試配置切換註解，再進行燒錄）
@@ -32,20 +35,29 @@ void setup() {
   }
   Serial.setTimeout(50); 
   
+  prefs.begin("lora_cfg", false);
+  long saved_freq = prefs.getLong("freq", LORA_FREQ);
+  long saved_bw = prefs.getLong("bw", 125000);
+  int saved_cr = prefs.getInt("cr", 6);
+  int saved_len = prefs.getInt("len", 255);
+  int saved_sf = prefs.getInt("sf", 7);
+  
+  targetPayloadLength = saved_len;
+
   Serial.print("\n=== LoRa 整合測試端初始化 [頻率: ");
-  Serial.print(LORA_FREQ / 1E6);
+  Serial.print(saved_freq / 1E6);
   Serial.println(" MHz] ===");
 
-  lora_init(LORA_FREQ);
+  lora_init(saved_freq);
   
-  lora_set_bandwidth(125000);
-  lora_set_coding_rate(6);
+  lora_set_bandwidth(saved_bw);
+  lora_set_coding_rate(saved_cr);
   lora_set_preamble_length(12);
   lora_set_sync_word(0xF1);
   lora_enable_crc();      
   lora_set_tx_power(20);   
   
-  updateParams(7);
+  updateParams(saved_sf);
   printMenu();
 }
 
@@ -144,7 +156,9 @@ void handleSerial() {
       int len = 0;
       if (sscanf(lowerInput.c_str(), "l %d", &len) == 1) {
         if (len >= 10 && len <= 255) {
+          lora_idle(); // 加入這行，讓底層晶片重新進入 RX 時能套用新的 expected_length (針對 SF6 隱含標頭)
           targetPayloadLength = len;
+          prefs.putInt("len", targetPayloadLength);
           Serial.print("\n>>> [設定] 目標封包長度已更改為: "); 
           Serial.print(targetPayloadLength); Serial.println(" Bytes");
         } else {
@@ -159,6 +173,7 @@ void handleSerial() {
       if (sscanf(lowerInput.c_str(), "f %ld", &freq) == 1) {
         lora_idle();
         lora_set_frequency(freq);
+        prefs.putLong("freq", freq);
         Serial.print("+SET_OK: Freq="); 
         Serial.print(freq / 1E6); Serial.println("MHz");
       }
@@ -167,6 +182,7 @@ void handleSerial() {
       if (sscanf(lowerInput.c_str(), "b %ld", &bw) == 1) {
         lora_idle();
         lora_set_bandwidth(bw);
+        prefs.putLong("bw", bw);
         Serial.print("+SET_OK: BW="); 
         Serial.println(bw);
       }
@@ -175,6 +191,7 @@ void handleSerial() {
       if (sscanf(lowerInput.c_str(), "c %d", &cr) == 1) {
         lora_idle();
         lora_set_coding_rate(cr);
+        prefs.putInt("cr", cr);
         Serial.print("+SET_OK: CR=4/"); 
         Serial.println(cr);
       }
@@ -183,6 +200,7 @@ void handleSerial() {
       if (sscanf(lowerInput.c_str(), "v %d", &sf) == 1) {
         if (sf >= 6 && sf <= 12) {
           updateParams(sf);
+          prefs.putInt("sf", sf);
           Serial.print("+SET_OK: RX_SF="); 
           Serial.println(sf);
         }

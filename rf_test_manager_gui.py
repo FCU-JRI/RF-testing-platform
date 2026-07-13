@@ -32,7 +32,6 @@ class NodePanel(ttk.Frame):
         self.node_name = node_name
         self.serial_conn = None
         self.running = False
-        self.last_settings = {}
         self.current_uuid = None
         self.csv_file = None
         self.csv_writer = None
@@ -156,25 +155,20 @@ class NodePanel(ttk.Frame):
         b_val = self.dyn_b.get()
         c_val = self.dyn_c.get()
         s_val = self.dyn_s.get()
-
-        if f_val != self.last_settings.get("f"):
+        if f_val:
             self.send_raw(f"f {int(float(f_val)*1E6)}")
-            self.last_settings["f"] = f_val
             time.sleep(0.05)
             
-        if b_val != self.last_settings.get("b"):
+        if b_val:
             self.send_raw(f"b {b_val}")
-            self.last_settings["b"] = b_val
             time.sleep(0.05)
             
-        if c_val != self.last_settings.get("c"):
+        if c_val:
             self.send_raw(f"c {c_val}")
-            self.last_settings["c"] = c_val
             time.sleep(0.05)
             
-        if s_val != self.last_settings.get("s"):
+        if s_val:
             self.send_raw(f"v {s_val}")
-            self.last_settings["s"] = s_val
             time.sleep(0.05)
 
     def send_tx_cmd(self, test_type):

@@ -9,12 +9,67 @@ import csv
 import subprocess
 import datetime
 import threading
+import queue
+import urllib.request
+import urllib.parse
+import json
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import serial
 import serial.tools.list_ports
 import shutil
 from tcp_sync import TCPSyncManager
+
+class HttpSseSerialBridge:
+    def __init__(self, base_url):
+        self.base_url = base_url.rstrip('/')
+        self.is_open = True
+        self._q = queue.Queue()
+        self._stop_event = threading.Event()
+        self._thread = threading.Thread(target=self._sse_loop, daemon=True)
+        self._thread.start()
+        
+    def _sse_loop(self):
+        req = urllib.request.Request(self.base_url + '/api/stream')
+        req.add_header('Cache-Control', 'no-cache')
+        req.add_header('Accept', 'text/event-stream')
+        while not self._stop_event.is_set():
+            try:
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    for line in response:
+                        if self._stop_event.is_set():
+                            break
+                        line = line.decode('utf-8').strip()
+                        if line.startswith('data:'):
+                            try:
+                                data = json.loads(line[5:])
+                                if data.get('type') == 'serial_data':
+                                    self._q.put((data['data'] + '\n').encode('utf-8'))
+                            except: pass
+            except Exception:
+                time.sleep(2)
+                
+    def read(self, size=1):
+        return b''
+        
+    def readline(self):
+        try:
+            return self._q.get(timeout=0.1)
+        except queue.Empty:
+            return b''
+            
+    def write(self, data):
+        cmd_str = data.decode('utf-8').strip()
+        payload = json.dumps({"action": "send_command", "cmd": cmd_str}).encode('utf-8')
+        req = urllib.request.Request(self.base_url + '/api/control', data=payload)
+        req.add_header('Content-Type', 'application/json')
+        try:
+            urllib.request.urlopen(req, timeout=2)
+        except: pass
+        
+    def close(self):
+        self.is_open = False
+        self._stop_event.set()
 
 tcp_sync_mgr = None
 
@@ -70,11 +125,12 @@ class NodePanel(ttk.Frame):
         conn_frame = ttk.LabelFrame(self, text=f"Connection - Node {self.node_name}", padding=10)
         conn_frame.pack(fill='x', pady=5)
         
-        ttk.Label(conn_frame, text="Port:").pack(side='left')
-        self.port_cb = ttk.Combobox(conn_frame, width=25)
+        ttk.Label(conn_frame, text="Port/URL:").pack(side='left')
+        self.port_cb = ttk.Combobox(conn_frame, width=32)
         self.port_cb.pack(side='left', padx=5)
         self.btn_conn = ttk.Button(conn_frame, text="Connect", command=self.toggle_connection)
         self.btn_conn.pack(side='left', padx=5)
+        ttk.Label(conn_frame, text="(支援 COM3, socket://IP:PORT, http://IP:8080)", foreground="gray").pack(side='left')
         
         # Operation Mode
         mode_frame = ttk.LabelFrame(self, text="Operation Role", padding=10)
@@ -146,12 +202,15 @@ class NodePanel(ttk.Frame):
 
     def toggle_connection(self):
         if not self.running:
-            port = self.port_cb.get()
+            port = self.port_cb.get().strip()
             if not port or "No devices" in port:
                 messagebox.showerror("Error", "Invalid port!")
                 return
             try:
-                self.serial_conn = serial.Serial(port, 115200, timeout=0.1)
+                if port.startswith("http://") or port.startswith("https://"):
+                    self.serial_conn = HttpSseSerialBridge(port)
+                else:
+                    self.serial_conn = serial.serial_for_url(port, baudrate=115200, timeout=0.1)
                 self.running = True
                 self.btn_conn.config(text="Disconnect")
                 self.out.write(f"[INFO] Connected to {port}\n")

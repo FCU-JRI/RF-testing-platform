@@ -72,6 +72,52 @@ class HttpSseSerialBridge:
         self._stop_event.set()
 
 tcp_sync_mgr = None
+web_srv = None
+gui_app = None
+
+def get_web_status():
+    return {"status": "gui_mode"}
+
+def execute_web_action(action, params):
+    global gui_app
+    if not gui_app:
+        return {"status": "error", "message": "GUI not ready"}
+        
+    active_serial = None
+    for node in [gui_app.nodeA, gui_app.nodeB]:
+        if node.running and node.serial_conn and not isinstance(node.serial_conn, HttpSseSerialBridge):
+            active_serial = node.serial_conn
+            break
+            
+    if action == 'send_command':
+        cmd = params.get('cmd')
+        if cmd and active_serial:
+            active_serial.write((cmd.strip() + '\n').encode('utf-8'))
+            return {"status": "ok"}
+        return {"status": "error", "message": "No active serial"}
+        
+    elif action == 'apply_settings':
+        freq, bw, cr, sf, length = params.get('freq'), params.get('bw'), params.get('cr'), params.get('sf'), params.get('len')
+        if active_serial:
+            if freq: active_serial.write(f"f {int(float(freq)*1E6)}\n".encode('utf-8')); time.sleep(0.05)
+            if bw: active_serial.write(f"b {bw}\n".encode('utf-8')); time.sleep(0.05)
+            if cr: active_serial.write(f"c {cr}\n".encode('utf-8')); time.sleep(0.05)
+            if sf: active_serial.write(f"v {sf}\n".encode('utf-8')); time.sleep(0.05)
+            if length: active_serial.write(f"l {length}\n".encode('utf-8')); time.sleep(0.05)
+            return {"status": "ok"}
+        return {"status": "error", "message": "No active serial"}
+        
+    elif action == 'start_test':
+        test_type, sf, interval = params.get('type'), params.get('sf', '7'), params.get('interval', '150')
+        if active_serial:
+            if test_type == 'formal': active_serial.write(f"{sf}\n".encode('utf-8'))
+            elif test_type == 'pre': active_serial.write(f"p {sf}\n".encode('utf-8'))
+            elif test_type == 'stress': active_serial.write(f"s {sf} {interval}\n".encode('utf-8'))
+            elif test_type == 'stop': active_serial.write(b"x\n")
+            return {"status": "ok"}
+        return {"status": "error", "message": "No active serial"}
+        
+    return {"status": "error", "message": f"Unknown action: {action}"}
 
 def sync_send_command(cmd):
     global tcp_sync_mgr
@@ -292,6 +338,10 @@ class NodePanel(ttk.Frame):
                 if not raw: continue
                 line = raw.decode('utf-8', errors='ignore').strip()
                 if not line: continue
+                
+                global web_srv
+                if web_srv and not isinstance(self.serial_conn, HttpSseSerialBridge):
+                    web_srv.broadcast({"type": "serial_data", "data": line})
                 
                 now = datetime.datetime.now().strftime("%H:%M:%S")
                 
@@ -657,5 +707,9 @@ class RfTestManagerGUI(tk.Tk):
             self.analysis_console.insert(tk.END, f"Error: {e}\n")
 
 if __name__ == "__main__":
+    from web_server import start_web_server
+    web_srv = start_web_server(8080, os.path.dirname(os.path.abspath(__file__)), get_web_status, execute_web_action)
+    
     app = RfTestManagerGUI()
+    gui_app = app
     app.mainloop()

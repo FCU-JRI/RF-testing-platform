@@ -320,7 +320,7 @@ class RfTestManagerGUI(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("LoRa Avionic Link Test & Flashing Manager (Unified Nodes)")
-        self.geometry("1000x800")
+        self.geometry("1400x800")
         
         # TCP Sync Control Frame
         sync_frame = ttk.LabelFrame(self, text="TCP Parameter Sync (Tailscale)", padding=10)
@@ -340,22 +340,23 @@ class RfTestManagerGUI(tk.Tk):
         self.notebook.pack(fill='both', expand=True, padx=5, pady=5)
         
         self.tab_flash = ttk.Frame(self.notebook)
-        self.tab_nodeA = ttk.Frame(self.notebook)
-        self.tab_nodeB = ttk.Frame(self.notebook)
+        self.tab_dual = ttk.Frame(self.notebook)
         self.tab_analysis = ttk.Frame(self.notebook)
         
         self.notebook.add(self.tab_flash, text="Flasher")
-        self.notebook.add(self.tab_nodeA, text="Node A")
-        self.notebook.add(self.tab_nodeB, text="Node B")
+        self.notebook.add(self.tab_dual, text="Dual Nodes View")
         self.notebook.add(self.tab_analysis, text="Log Analyzer")
         
         self.create_flash_tab()
         
-        self.nodeA = NodePanel(self.tab_nodeA, "A")
-        self.nodeA.pack(fill='both', expand=True)
+        self.paned_dual = ttk.PanedWindow(self.tab_dual, orient=tk.HORIZONTAL)
+        self.paned_dual.pack(fill='both', expand=True, padx=5, pady=5)
         
-        self.nodeB = NodePanel(self.tab_nodeB, "B")
-        self.nodeB.pack(fill='both', expand=True)
+        self.nodeA = NodePanel(self.paned_dual, "A")
+        self.paned_dual.add(self.nodeA, weight=1)
+        
+        self.nodeB = NodePanel(self.paned_dual, "B")
+        self.paned_dual.add(self.nodeB, weight=1)
         
         self.create_analysis_tab()
         

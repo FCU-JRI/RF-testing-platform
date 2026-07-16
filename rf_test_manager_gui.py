@@ -293,6 +293,13 @@ class NodePanel(ttk.Frame):
             self.btn_conn.config(text="Connect")
             self.out.write("[INFO] Disconnected\n")
 
+    RF_PARAM_PREFIXES = ('f ', 'b ', 'c ', 'v ', 'l ')
+
+    def _is_rf_param_cmd(self, cmd):
+        """Return True only for RF parameter commands that should sync to peer."""
+        c = cmd.strip()
+        return any(c.startswith(p) for p in self.RF_PARAM_PREFIXES)
+
     def send_raw(self, cmd, from_sync=False):
         global gui_app
         if self.running and self.serial_conn:
@@ -300,14 +307,14 @@ class NodePanel(ttk.Frame):
             if not from_sync:
                 if isinstance(self.serial_conn, HttpSseSerialBridge):
                     # HTTP mode: command already forwarded via HttpSseSerialBridge.write()
-                    # Additionally push to the other local NodePanel if it's a local COM
-                    if gui_app:
+                    # Additionally push RF params to the other local NodePanel if it's a local COM
+                    if gui_app and self._is_rf_param_cmd(cmd):
                         peer = gui_app.nodeB if self.node_name == 'A' else gui_app.nodeA
                         if peer and peer.running and peer.serial_conn and not isinstance(peer.serial_conn, HttpSseSerialBridge):
                             peer.send_raw(cmd, from_sync=True)
                 else:
-                    # Local COM: forward command to remote peer's API if connected via HTTP
-                    if gui_app:
+                    # Local COM: forward RF params to remote peer's API if connected via HTTP
+                    if gui_app and self._is_rf_param_cmd(cmd):
                         peer = gui_app.nodeB if self.node_name == 'A' else gui_app.nodeA
                         if peer and peer.peer_url:
                             threading.Thread(target=peer.http_sync_send, args=(cmd,), daemon=True).start()

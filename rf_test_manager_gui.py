@@ -14,6 +14,32 @@ from tkinter import ttk, messagebox, scrolledtext
 import serial
 import serial.tools.list_ports
 import shutil
+from tcp_sync import TCPSyncManager
+
+tcp_sync_mgr = None
+
+def sync_send_command(cmd):
+    global tcp_sync_mgr
+    if not tcp_sync_mgr or not tcp_sync_mgr.is_connected():
+        return
+    cmd = cmd.strip()
+    if cmd.isdigit() and 6 <= int(cmd) <= 12:
+        tcp_sync_mgr.send_command(f"v {cmd}")
+    elif cmd == 'p':
+        tcp_sync_mgr.send_command("v 7")
+    elif cmd.startswith("p "):
+        parts = cmd.split()
+        sf = parts[1] if len(parts) > 1 else "7"
+        tcp_sync_mgr.send_command(f"v {sf}")
+    elif cmd.startswith("s "):
+        parts = cmd.split()
+        sf = parts[1] if len(parts) > 1 else "7"
+        tcp_sync_mgr.send_command(f"v {sf}")
+    elif cmd == 'x':
+        tcp_sync_mgr.send_command("x")
+    elif any(cmd.startswith(prefix) for prefix in ["f ", "b ", "c ", "l ", "u ", "v "]):
+        tcp_sync_mgr.send_command(cmd)
+
 
 class ThreadSafeConsole:
     def __init__(self, text_widget):
@@ -146,9 +172,11 @@ class NodePanel(ttk.Frame):
             self.btn_conn.config(text="Connect")
             self.out.write("[INFO] Disconnected\n")
 
-    def send_raw(self, cmd):
+    def send_raw(self, cmd, from_sync=False):
         if self.running and self.serial_conn:
             self.serial_conn.write((cmd + '\n').encode())
+            if not from_sync:
+                sync_send_command(cmd)
 
     def apply_settings(self):
         f_val = self.dyn_f.get()
@@ -292,7 +320,21 @@ class RfTestManagerGUI(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("LoRa Avionic Link Test & Flashing Manager (Unified Nodes)")
-        self.geometry("1000x750")
+        self.geometry("1000x800")
+        
+        # TCP Sync Control Frame
+        sync_frame = ttk.LabelFrame(self, text="TCP Parameter Sync (Tailscale)", padding=10)
+        sync_frame.pack(fill='x', padx=5, pady=5)
+        
+        ttk.Label(sync_frame, text="Peer IP:").pack(side='left', padx=5)
+        self.peer_ip_entry = ttk.Entry(sync_frame, width=20)
+        self.peer_ip_entry.pack(side='left', padx=5)
+        
+        self.btn_sync_conn = ttk.Button(sync_frame, text="Connect", command=self.toggle_sync_connection)
+        self.btn_sync_conn.pack(side='left', padx=5)
+        
+        self.lbl_sync_status = ttk.Label(sync_frame, text="Status: Disconnected", foreground="red")
+        self.lbl_sync_status.pack(side='left', padx=10)
         
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill='both', expand=True, padx=5, pady=5)
@@ -317,7 +359,69 @@ class RfTestManagerGUI(tk.Tk):
         
         self.create_analysis_tab()
         
+        # Initialize TCP Sync Manager after node panels are ready
+        global tcp_sync_mgr
+        
+        def on_cmd_rcv(cmd):
+            for panel in [self.nodeA, self.nodeB]:
+                if panel.running and panel.serial_conn:
+                    panel.send_raw(cmd, from_sync=True)
+                    panel.out.write(f"[TCP Sync] Peer synchronized: {cmd}\n")
+                    
+                    # Update GUI controls
+                    parts = cmd.strip().split()
+                    if len(parts) >= 2:
+                        prefix = parts[0]
+                        val = parts[1]
+                        if prefix == 'f':
+                            try:
+                                mhz = str(int(int(val) / 1E6))
+                                panel.dyn_f.set(mhz)
+                            except:
+                                pass
+                        elif prefix == 'b':
+                            panel.dyn_b.set(val)
+                        elif prefix == 'c':
+                            panel.dyn_c.set(val)
+                        elif prefix == 'v':
+                            panel.dyn_s.set(val)
+
+        def gui_tcp_log(msg):
+            print(f"[TCP Sync] {msg}")
+            for panel in [self.nodeA, self.nodeB]:
+                if panel.running:
+                    panel.out.write(f"[TCP Sync] {msg}\n")
+
+        tcp_sync_mgr = TCPSyncManager(port=50077, on_command_received=on_cmd_rcv, log_func=gui_tcp_log)
+        
+        self.update_sync_ui()
         self.refresh_ports()
+
+    def toggle_sync_connection(self):
+        global tcp_sync_mgr
+        if not tcp_sync_mgr:
+            return
+        if not tcp_sync_mgr.is_connected():
+            ip = self.peer_ip_entry.get().strip()
+            if not ip:
+                messagebox.showerror("Error", "Please enter peer's Tailscale IP!")
+                return
+            self.lbl_sync_status.config(text="Connecting...", foreground="orange")
+            tcp_sync_mgr.connect_to_peer(ip)
+        else:
+            tcp_sync_mgr.disconnect_peer()
+
+    def update_sync_ui(self):
+        global tcp_sync_mgr
+        if tcp_sync_mgr:
+            if tcp_sync_mgr.is_connected():
+                peer_ip = tcp_sync_mgr.get_peer_info()
+                self.lbl_sync_status.config(text=f"Connected to {peer_ip}", foreground="green")
+                self.btn_sync_conn.config(text="Disconnect")
+            else:
+                self.lbl_sync_status.config(text="Status: Disconnected", foreground="red")
+                self.btn_sync_conn.config(text="Connect")
+        self.after(1000, self.update_sync_ui)
         
     def refresh_ports(self):
         ports = [p.device for p in serial.tools.list_ports.comports()]

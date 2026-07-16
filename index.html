@@ -785,6 +785,10 @@
         <i data-lucide="code"></i>
         <span>源碼備份瀏覽</span>
       </div>
+      <div class="nav-item" onclick="switchSection('live', this)">
+        <i data-lucide="terminal"></i>
+        <span>實時測試主控台</span>
+      </div>
     </nav>
 
     <div class="sidebar-footer">
@@ -1987,6 +1991,417 @@ String currentUUID = <span class="code-string">"N/A"</span>;    <span class="cod
       </div>
     </section>
 
+    <!-- ================= Live Console Section ================= -->
+    <section id="live" class="content-section">
+      <!-- Embedded Local Styles for Live Console -->
+      <style>
+        .live-container {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+        }
+        .live-top-bar {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: space-between;
+          gap: 1rem;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-color);
+          padding: 1.2rem;
+          border-radius: 12px;
+          align-items: center;
+        }
+        .live-top-group {
+          display: flex;
+          align-items: center;
+          gap: 0.8rem;
+        }
+        .live-grid {
+          display: grid;
+          grid-template-columns: 1fr 1.5fr;
+          gap: 1.5rem;
+        }
+        @media (max-width: 1024px) {
+          .live-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+        .live-card {
+          background: var(--card-gradient);
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          padding: 1.5rem;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          backdrop-filter: blur(10px);
+        }
+        .live-card-title {
+          font-family: 'Outfit', sans-serif;
+          font-size: 1.2rem;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          color: var(--accent-color);
+          border-bottom: 1px solid var(--border-color);
+          padding-bottom: 0.5rem;
+        }
+        .form-row {
+          display: flex;
+          flex-direction: column;
+          gap: 0.4rem;
+        }
+        .form-row label {
+          font-size: 0.85rem;
+          font-weight: 500;
+          color: var(--text-secondary);
+        }
+        .form-row input, .form-row select {
+          background: var(--bg-primary);
+          border: 1px solid var(--border-color);
+          color: var(--text-primary);
+          padding: 0.5rem;
+          border-radius: 6px;
+          font-family: inherit;
+          font-size: 0.9rem;
+        }
+        .form-row input:focus, .form-row select:focus {
+          border-color: var(--accent-color);
+          outline: none;
+          box-shadow: 0 0 8px var(--accent-glow);
+        }
+        .form-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+        }
+        .btn-action-group {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 0.8rem;
+        }
+        .btn-live {
+          background: linear-gradient(135deg, var(--bg-tertiary) 0%, rgba(30, 41, 59, 0.8) 100%);
+          border: 1px solid var(--border-color);
+          color: var(--text-primary);
+          padding: 0.6rem 1rem;
+          border-radius: 6px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+        }
+        .btn-live:hover {
+          background: var(--border-color);
+          transform: translateY(-2px);
+        }
+        .btn-live.active-btn {
+          background: linear-gradient(135deg, var(--accent-color) 0%, #0891b2 100%);
+          color: #0b0f19;
+          border: none;
+          box-shadow: 0 4px 12px var(--accent-glow);
+        }
+        .btn-live-danger {
+          background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+          color: white;
+          border: none;
+          padding: 0.6rem 1rem;
+          border-radius: 6px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.2s, box-shadow 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+        }
+        .btn-live-danger:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+        .live-console {
+          background: #090d16;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 1rem;
+          font-family: 'Fira Code', monospace;
+          font-size: 0.85rem;
+          color: #10b981;
+          height: 300px;
+          overflow-y: auto;
+          white-space: pre-wrap;
+          box-shadow: inset 0 2px 8px rgba(0,0,0,0.5);
+        }
+        .badge {
+          padding: 0.3rem 0.7rem;
+          border-radius: 20px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
+        }
+        .badge-disconnected {
+          background: rgba(239, 68, 68, 0.15);
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .badge-connected {
+          background: rgba(16, 185, 129, 0.15);
+          color: #10b981;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .live-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 1rem;
+        }
+        .live-stat-card {
+          background: rgba(255,255,255,0.02);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 0.8rem;
+          text-align: center;
+        }
+        .live-stat-val {
+          font-family: 'Fira Code', monospace;
+          font-size: 1.3rem;
+          font-weight: 700;
+          color: var(--accent-color);
+        }
+        .live-stat-lbl {
+          font-size: 0.75rem;
+          color: var(--text-secondary);
+          margin-top: 0.2rem;
+        }
+        .chart-container {
+          position: relative;
+          height: 250px;
+          width: 100%;
+        }
+      </style>
+
+      <div class="live-container">
+        <!-- Top status bar -->
+        <div class="live-top-bar">
+          <div class="live-top-group">
+            <i data-lucide="activity" style="color: var(--accent-color)"></i>
+            <span style="font-weight: 600;">硬體與網路狀態:</span>
+            <div id="web-serial-status" class="badge badge-disconnected">
+              <span class="status-dot"></span>Serial: Disconnected
+            </div>
+            <div id="web-peer-status" class="badge badge-disconnected">
+              <span class="status-dot"></span>Sync: Disconnected
+            </div>
+          </div>
+          <div class="live-top-group">
+            <span style="font-size: 0.85rem; color: var(--text-secondary)" id="web-port-info">本機監聽埠: 50077</span>
+          </div>
+        </div>
+
+        <div class="live-grid">
+          <!-- Left Column (Controls) -->
+          <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <!-- Web Serial Card -->
+            <div class="live-card">
+              <div class="live-card-title">
+                <i data-lucide="cpu"></i>
+                <span>本地序列埠 (Web Serial)</span>
+              </div>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <button class="btn-live" id="btn-web-serial-connect" onclick="connectWebSerial()" style="flex: 1;">
+                  <i data-lucide="usb"></i> 連接 ESP32
+                </button>
+                <button class="btn-live" id="btn-web-serial-disconnect" onclick="disconnectWebSerial()" style="display: none; background: rgba(239, 68, 68, 0.1);">
+                  中斷
+                </button>
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);" id="web-serial-device-info">
+                狀態: 未連接 (請點選上方按鈕授權序列埠)
+              </div>
+            </div>
+
+            <!-- Serial & Sync connection card -->
+            <div class="live-card">
+              <div class="live-card-title">
+                <i data-lucide="link"></i>
+                <span>連接對端與同步</span>
+              </div>
+              <div class="form-row">
+                <label for="web-peer-ip">對端 Tailscale IP (可包含 Port)</label>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="text" id="web-peer-ip" placeholder="例如: 100.x.y.z:50077" style="flex: 1;">
+                  <button class="btn-live" id="btn-web-connect-peer" onclick="webConnectPeer()" style="min-width: 80px;">連線</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Parameters Card -->
+            <div class="live-card">
+              <div class="live-card-title">
+                <i data-lucide="sliders"></i>
+                <span>LoRa 測試動態參數</span>
+              </div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label for="web-lora-freq">載波頻率 (MHz)</label>
+                  <select id="web-lora-freq">
+                    <option value="915">915 MHz</option>
+                    <option value="433">433 MHz</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label for="web-lora-bw">訊號頻寬 (Hz)</label>
+                  <select id="web-lora-bw">
+                    <option value="125000">125000 Hz</option>
+                    <option value="250000">250000 Hz</option>
+                    <option value="500000">500000 Hz</option>
+                    <option value="62500">62500 Hz</option>
+                    <option value="31250">31250 Hz</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label for="web-lora-cr">編碼率 (CR 4/x)</label>
+                  <select id="web-lora-cr">
+                    <option value="6">4/6</option>
+                    <option value="5">4/5</option>
+                    <option value="7">4/7</option>
+                    <option value="8">4/8</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label for="web-lora-sf">擴頻因子 (SF)</label>
+                  <select id="web-lora-sf">
+                    <option value="7">SF7</option>
+                    <option value="6">SF6</option>
+                    <option value="8">SF8</option>
+                    <option value="9">SF9</option>
+                    <option value="10">SF10</option>
+                    <option value="11">SF11</option>
+                    <option value="12">SF12</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label for="web-lora-len">封包長度 (Bytes)</label>
+                  <input type="number" id="web-lora-len" value="255" min="10" max="255">
+                </div>
+                <div class="form-row">
+                  <label for="web-lora-uuid">測試會話 UUID</label>
+                  <input type="text" id="web-lora-uuid" value="Auto" disabled style="background: var(--bg-secondary); color: var(--text-muted)">
+                </div>
+              </div>
+              <button class="btn-live active-btn" onclick="webApplySettings()" style="margin-top: 0.5rem;">
+                <i data-lucide="check"></i> 立即套用參數
+              </button>
+            </div>
+
+            <!-- Test Trigger Card -->
+            <div class="live-card">
+              <div class="live-card-title">
+                <i data-lucide="play-circle"></i>
+                <span>發射測試命令</span>
+              </div>
+              <div class="btn-action-group">
+                <button class="btn-live" id="btn-web-formal" onclick="webStartTest('formal')">
+                  <i data-lucide="award"></i> 正式測試
+                </button>
+                <button class="btn-live" id="btn-web-pre" onclick="webStartTest('pre')">
+                  <i data-lucide="radar"></i> 環境預測
+                </button>
+              </div>
+              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary)">壓力測試自訂參數:</span>
+                <div class="form-grid" style="align-items: flex-end;">
+                  <div class="form-row">
+                    <label for="web-stress-interval">間隔 (ms)</label>
+                    <input type="number" id="web-stress-interval" value="150" min="20">
+                  </div>
+                  <button class="btn-live" id="btn-web-stress" onclick="webStartTest('stress')">
+                    <i data-lucide="zap"></i> 壓力測試
+                  </button>
+                </div>
+              </div>
+              <button class="btn-live-danger" onclick="webStartTest('stop')">
+                <i data-lucide="square"></i> 強制停止發射 (Stop)
+              </button>
+            </div>
+          </div>
+
+          <!-- Right Column (Visualizer) -->
+          <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <!-- Real-time Charts Card -->
+            <div class="live-card" style="flex: 1;">
+              <div class="live-card-title">
+                <i data-lucide="line-chart"></i>
+                <span>收訊強度與雜訊比實時圖表</span>
+              </div>
+              <div class="chart-container">
+                <canvas id="webLiveChart"></canvas>
+              </div>
+            </div>
+
+            <!-- Stats & Logs Card -->
+            <div class="live-card">
+              <div class="live-card-title">
+                <i data-lucide="bar-chart-2"></i>
+                <span>當前測試數據統計</span>
+              </div>
+              <div class="live-stats-grid">
+                <div class="live-stat-card">
+                  <div class="live-stat-val" id="stat-web-expected">0</div>
+                  <div class="live-stat-lbl">預期封包數</div>
+                </div>
+                <div class="live-stat-card">
+                  <div class="live-stat-val" id="stat-web-received" style="color: var(--accent-emerald)">0</div>
+                  <div class="live-stat-lbl">成功接收</div>
+                </div>
+                <div class="live-stat-card">
+                  <div class="live-stat-val" id="stat-web-loss" style="color: #ef4444">0.0%</div>
+                  <div class="live-stat-lbl">丟包率</div>
+                </div>
+              </div>
+              <table class="live-stats-table">
+                <tr>
+                  <td><i data-lucide="radio" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 5px;"></i> 平均 RSSI</td>
+                  <td id="stat-web-avg-rssi">- dBm</td>
+                </tr>
+                <tr>
+                  <td><i data-lucide="waves" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 5px;"></i> 平均 SNR</td>
+                  <td id="stat-web-avg-snr">- dB</td>
+                </tr>
+                <tr>
+                  <td><i data-lucide="key" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 5px;"></i> 目前會話 UUID</td>
+                  <td id="stat-web-uuid" style="font-size: 0.75rem;">-</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Terminal Log -->
+        <div class="live-card">
+          <div class="live-card-title" style="justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <i data-lucide="terminal"></i>
+              <span>即時序列埠日誌 (Live Console Output)</span>
+            </div>
+            <button class="btn-live" onclick="clearWebConsole()" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">清除視窗</button>
+          </div>
+          <div class="live-console" id="web-console">等待連接 API 伺服器...</div>
+        </div>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -2022,9 +2437,9 @@ String currentUUID = <span class="code-string">"N/A"</span>;    <span class="cod
     } else if (sectionId === 'guide') {
       titleEl.innerText = '測試標準操作規程 (SOP)';
       subtitleEl.innerText = 'LoRa RF 現場雙向測量實施指南';
-    } else if (sectionId === 'code') {
-      titleEl.innerText = '測試韌體代碼備份';
-      subtitleEl.innerText = '發射端與接收端多版本原始碼瀏覽與複製';
+    } else if (sectionId === 'live') {
+      titleEl.innerText = '實時測試主控台 (Live Control)';
+      subtitleEl.innerText = '整合序列埠收發、Tailscale 雙端同步與實時數據圖表';
     }
   }
 
@@ -2351,6 +2766,537 @@ String currentUUID = <span class="code-string">"N/A"</span>;    <span class="cod
     });
   }
 
+  // ==========================================
+  // Live Console & Dynamic Sync Javascript
+  // ==========================================
+  let webLiveChart = null;
+  const maxChartPoints = 30;
+  let webEventSource = null;
+
+  function initWebChart() {
+    const ctx = document.getElementById('webLiveChart').getContext('2d');
+    webLiveChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'RSSI (dBm)',
+            data: [],
+            borderColor: '#06b6d4',
+            backgroundColor: 'rgba(6, 182, 212, 0.05)',
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.1,
+            yAxisID: 'y'
+          },
+          {
+            label: 'SNR (dB)',
+            data: [],
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139, 92, 246, 0.05)',
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.1,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: 'RSSI (dBm)',
+              color: '#06b6d4'
+            },
+            grid: {
+              color: 'rgba(255,255,255,0.05)'
+            },
+            ticks: {
+              color: '#94a3b8'
+            }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: {
+              display: true,
+              text: 'SNR (dB)',
+              color: '#8b5cf6'
+            },
+            grid: {
+              drawOnChartArea: false
+            },
+            ticks: {
+              color: '#94a3b8'
+            }
+          },
+          x: {
+            grid: {
+              color: 'rgba(255,255,255,0.05)'
+            },
+            ticks: {
+              color: '#94a3b8'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              color: '#f8fafc'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function addWebChartPoint(packetId, rssi, snr) {
+    if (!webLiveChart) return;
+    webLiveChart.data.labels.push(`ID:${packetId}`);
+    webLiveChart.data.datasets[0].data.push(rssi);
+    webLiveChart.data.datasets[1].data.push(snr);
+    
+    if (webLiveChart.data.labels.length > maxChartPoints) {
+      webLiveChart.data.labels.shift();
+      webLiveChart.data.datasets[0].data.shift();
+      webLiveChart.data.datasets[1].data.shift();
+    }
+    webLiveChart.update();
+  }
+
+  // ==========================================
+  // Web Serial API (Direct Browser-to-ESP32)
+  // ==========================================
+  let webSerialPort = null;
+  let webSerialReader = null;
+  let webSerialWriter = null;
+  let isReadingWebSerial = false;
+  
+  let jsStats = {
+    receivedIds: new Set(),
+    maxId: -1,
+    snrSum: 0,
+    rssiSum: 0,
+    count: 0,
+    currentUuid: null
+  };
+
+  async function connectWebSerial() {
+    if (!('serial' in navigator)) {
+      alert("您的瀏覽器不支援 Web Serial API！請使用 Chrome, Edge 或 Opera 瀏覽器。");
+      return;
+    }
+    
+    try {
+      webSerialPort = await navigator.serial.requestPort();
+      await webSerialPort.open({ baudRate: 115200 });
+      
+      const encoder = new TextEncoderStream();
+      const writableStreamClosed = encoder.readable.pipeTo(webSerialPort.writable);
+      webSerialWriter = encoder.writable.getWriter();
+      
+      document.getElementById('btn-web-serial-connect').innerText = "已連接 ESP32";
+      document.getElementById('btn-web-serial-connect').className = "btn-live active-btn";
+      document.getElementById('btn-web-serial-disconnect').style.display = "block";
+      document.getElementById('web-serial-status').className = "badge badge-connected";
+      document.getElementById('web-serial-status').innerHTML = `<span style="background:#10b981; width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px;"></span>Web Serial: Connected`;
+      document.getElementById('web-serial-device-info').innerText = "狀態: 已成功透過瀏覽器連線至 ESP32 序列埠。";
+      
+      isReadingWebSerial = true;
+      readWebSerialLoop();
+    } catch (e) {
+      console.error("Failed to open Web Serial:", e);
+      alert("連線序列埠失敗: " + e.message);
+    }
+  }
+
+  async function disconnectWebSerial() {
+    isReadingWebSerial = false;
+    if (webSerialReader) {
+      try {
+        await webSerialReader.cancel();
+        webSerialReader.releaseLock();
+      } catch(e){}
+      webSerialReader = null;
+    }
+    if (webSerialWriter) {
+      try {
+        webSerialWriter.releaseLock();
+      } catch(e){}
+      webSerialWriter = null;
+    }
+    if (webSerialPort) {
+      try {
+        await webSerialPort.close();
+      } catch(e){}
+      webSerialPort = null;
+    }
+    
+    document.getElementById('btn-web-serial-connect').innerText = "連接 ESP32";
+    document.getElementById('btn-web-serial-connect').className = "btn-live";
+    document.getElementById('btn-web-serial-disconnect').style.display = "none";
+    document.getElementById('web-serial-status').className = "badge badge-disconnected";
+    document.getElementById('web-serial-status').innerHTML = `<span style="background:#ef4444; width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px;"></span>Web Serial: Disconnected`;
+    document.getElementById('web-serial-device-info').innerText = "狀態: 未連接 (請點選上方按鈕授權序列埠)";
+  }
+
+  async function readWebSerialLoop() {
+    let lineBuffer = "";
+    while (isReadingWebSerial && webSerialPort && webSerialPort.readable) {
+      try {
+        const textDecoder = new TextDecoderStream();
+        const readableStreamClosed = webSerialPort.readable.pipeTo(textDecoder.writable);
+        const reader = textDecoder.readable.getReader();
+        webSerialReader = reader;
+        
+        while (isReadingWebSerial) {
+          const { value, done } = await reader.read();
+          if (done) {
+            break;
+          }
+          if (value) {
+            lineBuffer += value;
+            let lines = lineBuffer.split("\n");
+            lineBuffer = lines.pop();
+            
+            for (let line of lines) {
+              line = line.trim();
+              if (line) {
+                processIncomingLine(line);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Web Serial read error:", e);
+        break;
+      }
+    }
+    disconnectWebSerial();
+  }
+
+  function processIncomingLine(line) {
+    appendWebConsole("[ESP32] " + line);
+    
+    if (line.startsWith("+RCV:")) {
+      const parts = line.split(" | ");
+      const rcvPart = parts[0];
+      let snr = "N/A";
+      let rssi = "N/A";
+      for (let p of parts.slice(1)) {
+        if (p.startsWith("SNR:")) snr = p.split(":")[1].trim();
+        else if (p.startsWith("RSSI:")) rssi = p.split(":")[1].trim();
+      }
+      
+      const payload = rcvPart.substring(5);
+      const tagMap = {"TST": "PRE-TEST", "FRM": "FORM", "STR": "STRESS"};
+      const modeTag = tagMap[payload.substring(0, 3)] || "UNKNOWN";
+      
+      const firstColon = payload.indexOf(':');
+      const secondColon = payload.indexOf(':', firstColon + 1);
+      const asterisk = payload.indexOf('*');
+      const endIdx = asterisk === -1 ? payload.length : asterisk;
+      
+      let pktIdStr = "";
+      let uuidStr = "N/A";
+      if (secondColon !== -1 && secondColon < endIdx) {
+        pktIdStr = payload.substring(firstColon + 1, secondColon);
+        uuidStr = payload.substring(secondColon + 1, endIdx);
+      } else {
+        pktIdStr = payload.substring(firstColon + 1, endIdx);
+      }
+      
+      const pktId = parseInt(pktIdStr);
+      if (!isNaN(pktId)) {
+        updateLocalJSStats(pktId, uuidStr, parseFloat(snr), parseFloat(rssi), modeTag);
+      }
+    }
+  }
+
+  function updateLocalJSStats(pktId, uuidStr, snr, rssi, modeTag) {
+    if (uuidStr !== jsStats.currentUuid) {
+      jsStats.receivedIds.clear();
+      jsStats.maxId = -1;
+      jsStats.snrSum = 0;
+      jsStats.rssiSum = 0;
+      jsStats.count = 0;
+      jsStats.currentUuid = uuidStr;
+    }
+    
+    if (pktId < jsStats.maxId - 5 || (pktId === 0 && jsStats.maxId > 0)) {
+      jsStats.receivedIds.clear();
+      jsStats.maxId = -1;
+      jsStats.snrSum = 0;
+      jsStats.rssiSum = 0;
+      jsStats.count = 0;
+    }
+    
+    jsStats.receivedIds.add(pktId);
+    if (pktId > jsStats.maxId) {
+      jsStats.maxId = pktId;
+    }
+    
+    if (!isNaN(snr) && !isNaN(rssi)) {
+      jsStats.snrSum += snr;
+      jsStats.rssiSum += rssi;
+      jsStats.count++;
+      addWebChartPoint(pktId, rssi, snr);
+    }
+    
+    const totalExpected = jsStats.maxId + 1;
+    const receivedCount = jsStats.receivedIds.size;
+    const lostCount = totalExpected - receivedCount;
+    const loss = totalExpected > 0 ? (lostCount / totalExpected * 100.0) : 0.0;
+    
+    const avgSnr = jsStats.count > 0 ? (jsStats.snrSum / jsStats.count) : 0;
+    const avgRssi = jsStats.count > 0 ? (jsStats.rssiSum / jsStats.count) : 0;
+    
+    document.getElementById('stat-web-expected').innerText = totalExpected;
+    document.getElementById('stat-web-received').innerText = receivedCount;
+    document.getElementById('stat-web-loss').innerText = loss.toFixed(2) + "%";
+    document.getElementById('stat-web-avg-rssi').innerText = avgRssi.toFixed(1) + " dBm";
+    document.getElementById('stat-web-avg-snr').innerText = avgSnr.toFixed(1) + " dB";
+    document.getElementById('stat-web-uuid').innerText = uuidStr;
+  }
+
+  async function writeToWebSerial(cmd) {
+    if (webSerialWriter) {
+      try {
+        await webSerialWriter.write(cmd + "\n");
+        appendWebConsole("[TX] " + cmd);
+      } catch(e) {
+        console.error("Web Serial write error:", e);
+      }
+    }
+  }
+
+  function connectSSE() {
+    if (webEventSource) {
+      webEventSource.close();
+    }
+    
+    const consoleEl = document.getElementById('web-console');
+    consoleEl.innerText = "[SYS] Connecting to Local Python API Server...\n";
+    
+    const apiHost = location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
+    webEventSource = new EventSource(apiHost + '/api/stream');
+    
+    webEventSource.onopen = function() {
+      consoleEl.innerText = "[SYS] Connected to Python Sync Server successfully. Waiting for serial data...\n";
+    };
+    
+    webEventSource.onerror = function() {
+      consoleEl.innerText += "[SYS] Connection closed or timed out. Reconnecting in 3s...\n";
+    };
+    
+    webEventSource.onmessage = function(event) {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'serial_data') {
+          appendWebConsole(data.data);
+        } else if (data.type === 'status_update') {
+          updateWebStatus(data);
+        } else if (data.type === 'peer_cmd') {
+          appendWebConsole("[TCP Sync] Received Peer command: " + data.cmd);
+          if (webSerialPort) {
+            writeToWebSerial(data.cmd);
+          }
+          const parts = data.cmd.trim().split(/\s+/);
+          if (parts.length >= 2) {
+            const prefix = parts[0];
+            const val = parts[1];
+            if (prefix === 'f') {
+              try {
+                const mhz = Math.round(parseInt(val) / 1E6).toString();
+                document.getElementById('web-lora-freq').value = mhz;
+              } catch(e){}
+            } else if (prefix === 'b') {
+              document.getElementById('web-lora-bw').value = val;
+            } else if (prefix === 'c') {
+              document.getElementById('web-lora-cr').value = val;
+            } else if (prefix === 'v') {
+              document.getElementById('web-lora-sf').value = val;
+            }
+          }
+        } else if (data.type === 'log_data') {
+          const pktId = parseInt(data.pkt_id);
+          const rssi = parseFloat(data.rssi);
+          const snr = parseFloat(data.snr);
+          if (!isNaN(pktId) && !isNaN(rssi) && !isNaN(snr)) {
+            addWebChartPoint(pktId, rssi, snr);
+          }
+          updateWebStats(data);
+        }
+      } catch (e) {
+        console.error("SSE parsing error:", e);
+      }
+    };
+  }
+
+  function appendWebConsole(line) {
+    const el = document.getElementById('web-console');
+    el.innerText += line + "\n";
+    if (el.innerText.length > 50000) {
+      el.innerText = el.innerText.substring(el.innerText.length - 20000);
+    }
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function clearWebConsole() {
+    document.getElementById('web-console').innerText = "";
+  }
+
+  function updateWebStatus(data) {
+    const serialBadge = document.getElementById('web-serial-status');
+    const peerBadge = document.getElementById('web-peer-status');
+    const portInfo = document.getElementById('web-port-info');
+    
+    if (data.serial_connected) {
+      serialBadge.className = "badge badge-connected";
+      serialBadge.innerHTML = `<span style="background:#10b981; width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px;"></span>Serial: Connected (${data.serial_port})`;
+    } else {
+      serialBadge.className = "badge badge-disconnected";
+      serialBadge.innerHTML = `<span style="background:#ef4444; width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px;"></span>Serial: Disconnected`;
+    }
+    
+    if (data.peer_connected) {
+      peerBadge.className = "badge badge-connected";
+      peerBadge.innerHTML = `<span style="background:#10b981; width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px;"></span>Sync: Connected (${data.peer_ip})`;
+      document.getElementById('btn-web-connect-peer').innerText = "中斷";
+      document.getElementById('btn-web-connect-peer').className = "btn-live active-btn";
+      document.getElementById('btn-web-connect-peer').onclick = webDisconnectPeer;
+      document.getElementById('web-peer-ip').value = data.peer_ip;
+    } else {
+      peerBadge.className = "badge badge-disconnected";
+      peerBadge.innerHTML = `<span style="background:#ef4444; width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px;"></span>Sync: Disconnected`;
+      document.getElementById('btn-web-connect-peer').innerText = "連線";
+      document.getElementById('btn-web-connect-peer').className = "btn-live";
+      document.getElementById('btn-web-connect-peer').onclick = webConnectPeer;
+    }
+    
+    portInfo.innerText = `本機監聽埠: ${data.local_port}`;
+    
+    if (data.current_sf !== "UNKNOWN" && document.getElementById('web-lora-sf').value !== data.current_sf) {
+      document.getElementById('web-lora-sf').value = data.current_sf;
+    }
+    if (data.current_freq !== "UNKNOWN" && document.getElementById('web-lora-freq').value !== data.current_freq) {
+      document.getElementById('web-lora-freq').value = data.current_freq;
+    }
+  }
+
+  function sendControl(action, params = {}) {
+    const apiHost = location.protocol === 'file:' ? 'http://127.0.0.1:8080' : '';
+    return fetch(apiHost + '/api/control', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ action, ...params })
+    })
+    .then(res => res.json())
+    .catch(e => console.error("Control API Error:", e));
+  }
+
+  function webConnectPeer() {
+    const ip = document.getElementById('web-peer-ip').value.trim();
+    if (!ip) return alert("請輸入對端的 Tailscale IP！");
+    sendControl('connect_peer', { ip }).then(res => {
+      if (res && res.status === 'ok') {
+        alert("Peer 同步連線指令已送出！");
+      } else {
+        alert("錯誤: " + (res ? res.message : "無法連線至 API"));
+      }
+    });
+  }
+
+  function webDisconnectPeer() {
+    sendControl('disconnect_peer').then(res => {
+      if (res && res.status === 'ok') {
+        alert("已中斷與對端同步！");
+      }
+    });
+  }
+
+  function webApplySettings() {
+    const freq = document.getElementById('web-lora-freq').value;
+    const bw = document.getElementById('web-lora-bw').value;
+    const cr = document.getElementById('web-lora-cr').value;
+    const sf = document.getElementById('web-lora-sf').value;
+    const len = document.getElementById('web-lora-len').value;
+    
+    if (webSerialPort) {
+      if (freq) writeToWebSerial(`f ${parseInt(freq)*1000000}`);
+      if (bw) setTimeout(() => writeToWebSerial(`b ${bw}`), 100);
+      if (cr) setTimeout(() => writeToWebSerial(`c ${cr}`), 200);
+      if (sf) setTimeout(() => writeToWebSerial(`v ${sf}`), 300);
+      if (len) setTimeout(() => writeToWebSerial(`l ${len}`), 400);
+      
+      // Send settings sync to peer
+      sendControl('apply_settings_sync', { freq, bw, cr, sf, len }).then(res => {
+        if (res && res.status === 'ok') {
+          appendWebConsole("[SYS] Settings sync command sent to peer.");
+        }
+      });
+      alert("動態參數設定成功！已寫入本地 Web Serial 並發送同步指令給對端。");
+    } else {
+      sendControl('apply_settings', { freq, bw, cr, sf, len }).then(res => {
+        if (res && res.status === 'ok') {
+          alert("動態參數設定成功！已透過本機 Python 寫入序列埠與對端同步。");
+        }
+      });
+    }
+  }
+
+  function webStartTest(type) {
+    const sf = document.getElementById('web-lora-sf').value;
+    const interval = document.getElementById('web-stress-interval').value;
+    
+    let cmd = "";
+    if (type === 'formal') cmd = sf;
+    else if (type === 'pre') cmd = `p ${sf}`;
+    else if (type === 'stress') cmd = `s ${sf} ${interval}`;
+    else if (type === 'stop') cmd = "x";
+    
+    if (webSerialPort) {
+      writeToWebSerial(cmd);
+      sendControl('start_test_sync', { type, sf, interval }).then(res => {
+        if (res && res.status === 'ok') {
+          appendWebConsole("[SYS] Test start command sync sent to peer.");
+        }
+      });
+      alert(`已對本地 Web Serial 寫入命令: ${cmd}，並同步命令至對端。`);
+    } else {
+      sendControl('start_test', { type, sf, interval }).then(res => {
+        if (res && res.status === 'ok') {
+          if (type === 'stop') {
+            alert("已強制停止發射！");
+          } else {
+            alert(`啟動 ${type} 測試命令成功！`);
+          }
+        } else {
+          alert("錯誤: " + (res ? res.message : "無法連線"));
+        }
+      });
+    }
+  }
+
+  function updateWebStats(data) {
+    document.getElementById('stat-web-expected').innerText = data.expected || 0;
+    document.getElementById('stat-web-received').innerText = data.received || 0;
+    document.getElementById('stat-web-loss').innerText = (data.loss || 0.0) + "%";
+    document.getElementById('stat-web-avg-rssi').innerText = (data.avg_rssi || "-") + " dBm";
+    document.getElementById('stat-web-avg-snr').innerText = (data.avg_snr || "-") + " dB";
+    document.getElementById('stat-web-uuid').innerText = data.uuid || "-";
+  }
+
   function updateChartData() {
     if (!perfChart) return;
 
@@ -2377,6 +3323,8 @@ String currentUUID = <span class="code-string">"N/A"</span>;    <span class="cod
   // Load chart on DOM Content Ready
   document.addEventListener('DOMContentLoaded', () => {
     initChart();
+    initWebChart();
+    connectSSE();
   });
 </script>
 

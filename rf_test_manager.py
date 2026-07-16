@@ -22,9 +22,76 @@ import datetime
 
 import serial
 import serial.tools.list_ports
+from tcp_sync import TCPSyncManager
+
 # Default configuration parameters
 DEFAULT_PORT = None
 AVAILABLE_PORTS = []
+tcp_sync_mgr = None
+ACTIVE_SERIAL = None
+CURRENT_SF = "UNKNOWN"
+CURRENT_FREQ = "UNKNOWN"
+web_srv = None
+
+def update_state_from_cmd(cmd):
+    global CURRENT_SF, CURRENT_FREQ
+    cmd = cmd.strip()
+    if cmd.isdigit() and 6 <= int(cmd) <= 12:
+        CURRENT_SF = cmd
+        print(f"[TCP Sync] State Updated: Spreading Factor = SF{CURRENT_SF}")
+    elif cmd.startswith("p ") or cmd == "p":
+        parts = cmd.split()
+        CURRENT_SF = parts[1] if len(parts) > 1 else "7"
+        print(f"[TCP Sync] State Updated: Spreading Factor = SF{CURRENT_SF}")
+    elif cmd.startswith("s "):
+        parts = cmd.split()
+        CURRENT_SF = parts[1] if len(parts) > 1 else "7"
+        print(f"[TCP Sync] State Updated: Spreading Factor = SF{CURRENT_SF}")
+    else:
+        parts = cmd.split()
+        if len(parts) >= 2:
+            prefix = parts[0]
+            val = parts[1]
+            if prefix == 'f':
+                try:
+                    CURRENT_FREQ = str(int(int(val) / 1E6))
+                    print(f"[TCP Sync] State Updated: Frequency = {CURRENT_FREQ} MHz")
+                except:
+                    pass
+            elif prefix == 'v':
+                CURRENT_SF = val
+                print(f"[TCP Sync] State Updated: Spreading Factor = SF{CURRENT_SF}")
+
+def sync_send_command(cmd):
+    global tcp_sync_mgr
+    update_state_from_cmd(cmd)
+    if not tcp_sync_mgr or not tcp_sync_mgr.is_connected():
+        return
+    cmd = cmd.strip()
+    if cmd.isdigit() and 6 <= int(cmd) <= 12:
+        tcp_sync_mgr.send_command(f"v {cmd}")
+    elif cmd == 'p':
+        tcp_sync_mgr.send_command("v 7")
+    elif cmd.startswith("p "):
+        parts = cmd.split()
+        sf = parts[1] if len(parts) > 1 else "7"
+        tcp_sync_mgr.send_command(f"v {sf}")
+    elif cmd.startswith("s "):
+        parts = cmd.split()
+        sf = parts[1] if len(parts) > 1 else "7"
+        tcp_sync_mgr.send_command(f"v {sf}")
+    elif cmd == 'x':
+        tcp_sync_mgr.send_command("x")
+    elif any(cmd.startswith(prefix) for prefix in ["f ", "b ", "c ", "l ", "u ", "v "]):
+        tcp_sync_mgr.send_command(cmd)
+
+def write_to_serial(ser, cmd):
+    try:
+        ser.write((cmd.strip() + '\n').encode('utf-8'))
+        sync_send_command(cmd)
+    except Exception as e:
+        print(f"[ERROR] Failed to write to serial: {e}")
+
 
 
 def scan_serial_ports():
@@ -123,7 +190,7 @@ def flash_firmware():
 
 def start_transmitter():
     """Generates UUID, sets it on the transmitter, initiates a test session, and logs sent packets."""
-    global DEFAULT_PORT
+    global DEFAULT_PORT, ACTIVE_SERIAL
     if not DEFAULT_PORT:
         DEFAULT_PORT = select_port()
         if not DEFAULT_PORT:
@@ -133,6 +200,7 @@ def start_transmitter():
     print(f"\n[INFO] Connecting to Transmitter on {DEFAULT_PORT}...")
     try:
         ser = serial.Serial(DEFAULT_PORT, 115200, timeout=1.0)
+        ACTIVE_SERIAL = ser
     except Exception as e:
         print(f"[ERROR] Failed to connect to serial port {DEFAULT_PORT}: {e}")
         return
@@ -149,8 +217,8 @@ def start_transmitter():
         print(f"\n[INFO] Generated UUID for this session: {test_uuid}")
         
         # Send UUID setting command
-        uuid_cmd = f"u {test_uuid}\n"
-        ser.write(uuid_cmd.encode('utf-8'))
+        uuid_cmd = f"u {test_uuid}"
+        write_to_serial(ser, uuid_cmd)
         time.sleep(0.3)
         
         # Display acknowledgment
@@ -173,22 +241,22 @@ def start_transmitter():
         if choice == '1':
             sf = input("Enter Spreading Factor (6-12) [default 7]: ").strip()
             if not sf: sf = "7"
-            cmd = f"{sf}\n"
+            cmd = f"{sf}"
             print(f"[INFO] Starting Formal Test (SF{sf})...")
         elif choice == '2':
             sf = input("Enter Spreading Factor (6-12) [default 7]: ").strip()
             if not sf: sf = "7"
             interval = input("Enter transmission interval in ms [default 150]: ").strip()
             if not interval: interval = "150"
-            cmd = f"s {sf} {interval}\n"
+            cmd = f"s {sf} {interval}"
             print(f"[INFO] Starting Stress Test (SF{sf}, {interval}ms)...")
         elif choice == '3':
             sf = input("Enter Spreading Factor (6-12) [default 7]: ").strip()
             if not sf: sf = "7"
-            cmd = f"p {sf}\n"
+            cmd = f"p {sf}"
             print(f"[INFO] Starting Pre-Test environment scans (SF{sf})...")
         elif choice == '4':
-            cmd = "x\n"
+            cmd = "x"
             print("[INFO] Stopping transmitter...")
         else:
             print("[ERROR] Invalid choice. Please try again.")
@@ -204,7 +272,7 @@ def start_transmitter():
         log_path = f"logs/sent_packets_{freq}MHz_SF{sf}_{test_uuid}.csv" if choice in ['1', '2', '3'] else f"logs/sent_packets_{test_uuid}.csv"
         
         # Start transmission
-        ser.write(cmd.encode('utf-8'))
+        write_to_serial(ser, cmd)
         time.sleep(0.1)
         
         if choice in ['1', '2', '3']:
@@ -226,7 +294,7 @@ def start_transmitter():
                         if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
                             kbd_cmd = sys.stdin.readline().strip()
                             if kbd_cmd:
-                                ser.write((kbd_cmd + '\n').encode('utf-8'))
+                                write_to_serial(ser, kbd_cmd)
                         
                         # 檢查 Serial 資料
                         if ser.in_waiting:
@@ -268,7 +336,7 @@ def start_transmitter():
             except KeyboardInterrupt:
                 print("\n[INFO] 中斷目前測試。自動傳送 'x' 指令以確保發射端晶片停止廣播...")
                 try:
-                    ser.write(b"x\n")
+                    write_to_serial(ser, "x")
                     time.sleep(0.1)
                 except:
                     pass
@@ -279,13 +347,14 @@ def start_transmitter():
             while ser.in_waiting:
                 print(f"[DEVICE] {ser.readline().decode('utf-8', errors='ignore').strip()}")
                 
+    ACTIVE_SERIAL = None
     ser.close()
     print("[INFO] Connection closed.")
 
 
 def run_receiver_logger():
     """Logs parsed packet data from receiver Serial port to CSV, displaying a dashboard."""
-    global DEFAULT_PORT
+    global DEFAULT_PORT, ACTIVE_SERIAL, CURRENT_SF, CURRENT_FREQ
     if not DEFAULT_PORT:
         DEFAULT_PORT = select_port()
         if not DEFAULT_PORT:
@@ -295,24 +364,25 @@ def run_receiver_logger():
     print(f"\n[INFO] Listening for incoming LoRa packets on {DEFAULT_PORT}...")
     
     freq_input = input("Enter current Frequency (433/915) for log filename: ").strip()
-    freq = freq_input if freq_input else "UNKNOWN"
+    CURRENT_FREQ = freq_input if freq_input else "UNKNOWN"
     
     sf_input = input("Enter current Spreading Factor (6-12) for log filename: ").strip()
-    sf = sf_input if sf_input else "UNKNOWN"
+    CURRENT_SF = sf_input if sf_input else "UNKNOWN"
     
     print("[INFO] Saving data to CSV log file. Press Ctrl+C to terminate.")
     print("[INFO] 您可以在此終端機輸入指令（如 'r' 重置統計、'6'-'12' 切換 SF）並按下 Enter 送出。")
     
     try:
         ser = serial.Serial(DEFAULT_PORT, 115200, timeout=1.0)
+        ACTIVE_SERIAL = ser
     except Exception as e:
         print(f"[ERROR] Failed to connect to serial port {DEFAULT_PORT}: {e}")
         return
         
     time.sleep(2) # Wait for ESP32 reset after serial connection
-    if sf.isdigit() and 6 <= int(sf) <= 12:
-        print(f"[INFO] Automatically switching Receiver to SF{sf}...")
-        ser.write((sf + '\n').encode('utf-8'))
+    if CURRENT_SF.isdigit() and 6 <= int(CURRENT_SF) <= 12:
+        print(f"[INFO] Automatically switching Receiver to SF{CURRENT_SF}...")
+        write_to_serial(ser, CURRENT_SF)
         time.sleep(0.5)
         
     # 建立背景執行緒監聽鍵盤輸入，並轉發給接收端 ESP32
@@ -322,7 +392,7 @@ def run_receiver_logger():
             try:
                 cmd = input().strip()
                 if cmd:
-                    ser.write((cmd + '\n').encode('utf-8'))
+                    write_to_serial(ser, cmd)
             except (KeyboardInterrupt, EOFError, Exception):
                 break
 
@@ -348,6 +418,10 @@ def run_receiver_logger():
             line = ser.readline().decode('utf-8', errors='ignore').strip()
             if not line:
                 continue
+                
+            global web_srv
+            if web_srv:
+                web_srv.broadcast({"type": "serial_data", "data": line})
                 
             # Handle reset command notifications from receiver
             if "RESET" in line:
@@ -407,7 +481,10 @@ def run_receiver_logger():
                     if uuid_str not in session_stats:
                         session_stats[uuid_str] = {
                             "received_ids": set(),
-                            "max_id": -1
+                            "max_id": -1,
+                            "snr_sum": 0.0,
+                            "rssi_sum": 0.0,
+                            "count": 0
                         }
                     
                     stats = session_stats[uuid_str]
@@ -417,8 +494,17 @@ def run_receiver_logger():
                         print(f"\n[STATUS] 偵測到 UUID {uuid_str} 的發射端重置，重置該會話統計數據。\n")
                         stats["received_ids"].clear()
                         stats["max_id"] = -1
+                        stats["snr_sum"] = 0.0
+                        stats["rssi_sum"] = 0.0
+                        stats["count"] = 0
                         
                     stats["received_ids"].add(pkt_id)
+                    try:
+                        stats["snr_sum"] += float(snr)
+                        stats["rssi_sum"] += float(rssi)
+                        stats["count"] += 1
+                    except ValueError:
+                        pass
                     
                     if pkt_id > stats["max_id"]:
                         stats["max_id"] = pkt_id
@@ -428,12 +514,15 @@ def run_receiver_logger():
                     lost_count = total_expected - received_count
                     loss = (lost_count / total_expected * 100.0) if total_expected > 0 else 0.0
                     
+                    avg_snr = (stats["snr_sum"] / stats["count"]) if stats["count"] > 0 else 0.0
+                    avg_rssi = (stats["rssi_sum"] / stats["count"]) if stats["count"] > 0 else 0.0
+                    
                     # Dynamically open/switch CSV file based on received UUID
                     if uuid_str != current_uuid:
                         if f:
                             f.close()
                         current_uuid = uuid_str
-                        log_path = f"logs/received_packets_{freq}MHz_SF{sf}_{current_uuid}.csv"
+                        log_path = f"logs/received_packets_{CURRENT_FREQ}MHz_SF{CURRENT_SF}_{current_uuid}.csv"
                         file_exists = os.path.exists(log_path)
                         f = open(log_path, 'a', newline='', encoding='utf-8')
                         csv_writer = csv.writer(f)
@@ -449,6 +538,21 @@ def run_receiver_logger():
                     if mode_tag in ["FORM", "STRESS"] and csv_writer:
                         csv_writer.writerow([iso_time, mode_tag, pkt_id, uuid_str, snr, rssi, f"{loss:.2f}"])
                         f.flush()
+                        
+                    if web_srv:
+                        web_srv.broadcast({
+                            "type": "log_data",
+                            "pkt_id": pkt_id,
+                            "mode": mode_tag,
+                            "uuid": uuid_str,
+                            "snr": snr,
+                            "rssi": rssi,
+                            "loss": f"{loss:.2f}",
+                            "expected": total_expected,
+                            "received": received_count,
+                            "avg_rssi": f"{avg_rssi:.1f}",
+                            "avg_snr": f"{avg_snr:.1f}"
+                        })
                         
                     # Display table row
                     print(f"{time_now:<8} | {mode_tag:<8} | {pkt_id:<5} | {uuid_str:<36} | {snr:<5} | {rssi:<5} | {loss:.2f}%")
@@ -469,6 +573,7 @@ def run_receiver_logger():
     finally:
         if f:
             f.close()
+        ACTIVE_SERIAL = None
         ser.close()
 
 def analyze_log():
@@ -566,8 +671,159 @@ def analyze_log():
     except Exception as e:
         print(f"[ERROR] Failed to read or parse CSV: {e}")
 
+def get_web_status():
+    global ACTIVE_SERIAL, tcp_sync_mgr, CURRENT_SF, CURRENT_FREQ, web_srv
+    serial_port_name = ACTIVE_SERIAL.port if (ACTIVE_SERIAL and ACTIVE_SERIAL.is_open) else None
+    
+    import serial.tools.list_ports
+    ports = [p.device for p in serial.tools.list_ports.comports()]
+    
+    peer_connected = tcp_sync_mgr.is_connected() if tcp_sync_mgr else False
+    peer_ip = tcp_sync_mgr.peer_ip if tcp_sync_mgr else None
+    local_tcp_port = tcp_sync_mgr.port if tcp_sync_mgr else 50077
+    local_web_port = web_srv.web_port if web_srv else 8080
+    
+    return {
+        "serial_connected": serial_port_name is not None,
+        "serial_port": serial_port_name,
+        "peer_connected": peer_connected,
+        "peer_ip": peer_ip,
+        "local_port": local_tcp_port,
+        "web_port": local_web_port,
+        "current_sf": CURRENT_SF,
+        "current_freq": CURRENT_FREQ,
+        "available_ports": ports
+    }
+
+def execute_web_action(action, params):
+    global ACTIVE_SERIAL, tcp_sync_mgr
+    
+    if action == 'send_command':
+        cmd = params.get('cmd')
+        if cmd and ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
+            write_to_serial(ACTIVE_SERIAL, cmd)
+            return {"status": "ok"}
+        return {"status": "error", "message": "Serial port not active or command empty"}
+        
+    elif action == 'connect_peer':
+        ip = params.get('ip')
+        if ip and tcp_sync_mgr:
+            tcp_sync_mgr.connect_to_peer(ip)
+            return {"status": "ok"}
+        return {"status": "error", "message": "Sync manager not active or IP empty"}
+        
+    elif action == 'disconnect_peer':
+        if tcp_sync_mgr:
+            tcp_sync_mgr.disconnect_peer()
+            return {"status": "ok"}
+        return {"status": "error", "message": "Sync manager not active"}
+        
+    elif action == 'send_command_sync':
+        cmd = params.get('cmd')
+        if cmd:
+            sync_send_command(cmd)
+            return {"status": "ok"}
+        return {"status": "error", "message": "Command empty"}
+        
+    elif action == 'apply_settings_sync':
+        freq = params.get('freq')
+        bw = params.get('bw')
+        cr = params.get('cr')
+        sf = params.get('sf')
+        length = params.get('len')
+        
+        if freq: sync_send_command(f"f {int(float(freq)*1E6)}")
+        if bw: sync_send_command(f"b {bw}")
+        if cr: sync_send_command(f"c {cr}")
+        if sf: sync_send_command(f"v {sf}")
+        if length: sync_send_command(f"l {length}")
+        return {"status": "ok"}
+        
+    elif action == 'start_test_sync':
+        test_type = params.get('type')
+        sf = params.get('sf', '7')
+        interval = params.get('interval', '150')
+        
+        if test_type == 'formal':
+            sync_send_command(sf)
+        elif test_type == 'pre':
+            sync_send_command(f"p {sf}")
+        elif test_type == 'stress':
+            sync_send_command(f"s {sf} {interval}")
+        elif test_type == 'stop':
+            sync_send_command("x")
+        return {"status": "ok"}
+        
+    elif action == 'apply_settings':
+        freq = params.get('freq')
+        bw = params.get('bw')
+        cr = params.get('cr')
+        sf = params.get('sf')
+        length = params.get('len')
+        
+        if ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
+            if freq:
+                write_to_serial(ACTIVE_SERIAL, f"f {int(float(freq)*1E6)}")
+                time.sleep(0.05)
+            if bw:
+                write_to_serial(ACTIVE_SERIAL, f"b {bw}")
+                time.sleep(0.05)
+            if cr:
+                write_to_serial(ACTIVE_SERIAL, f"c {cr}")
+                time.sleep(0.05)
+            if sf:
+                write_to_serial(ACTIVE_SERIAL, f"v {sf}")
+                time.sleep(0.05)
+            if length:
+                write_to_serial(ACTIVE_SERIAL, f"l {length}")
+                time.sleep(0.05)
+            return {"status": "ok"}
+        return {"status": "error", "message": "Serial port not active"}
+        
+    elif action == 'start_test':
+        test_type = params.get('type')
+        sf = params.get('sf', '7')
+        interval = params.get('interval', '150')
+        
+        if ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
+            if test_type == 'formal':
+                write_to_serial(ACTIVE_SERIAL, sf)
+            elif test_type == 'pre':
+                write_to_serial(ACTIVE_SERIAL, f"p {sf}")
+            elif test_type == 'stress':
+                write_to_serial(ACTIVE_SERIAL, f"s {sf} {interval}")
+            elif test_type == 'stop':
+                write_to_serial(ACTIVE_SERIAL, "x")
+            return {"status": "ok"}
+        return {"status": "error", "message": "Serial port not active"}
+        
+    return {"status": "error", "message": f"Unknown action: {action}"}
+
 def main():
     """Main execution menu loop."""
+    global tcp_sync_mgr, web_srv
+    
+    # Initialize Web Server (port 8080 default, serving current directory)
+    from web_server import start_web_server
+    web_srv = start_web_server(8080, os.path.dirname(os.path.abspath(__file__)), get_web_status, execute_web_action)
+    
+    # Initialize TCP Sync Manager
+    def on_cmd_rcv(cmd):
+        global ACTIVE_SERIAL, web_srv
+        update_state_from_cmd(cmd)
+        if web_srv:
+            web_srv.broadcast({"type": "peer_cmd", "cmd": cmd})
+        if ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
+            try:
+                ACTIVE_SERIAL.write((cmd.strip() + '\n').encode('utf-8'))
+                print(f"\n[TCP Sync] Peer synchronized command: {cmd}")
+            except Exception as e:
+                print(f"\n[TCP Sync] Error writing to serial: {e}")
+        else:
+            print(f"\n[TCP Sync] Peer sent command '{cmd}', but serial port is not active.")
+
+    tcp_sync_mgr = TCPSyncManager(port=50077, on_command_received=on_cmd_rcv, log_func=print)
+
     while True:
         print("\n" + "=" * 64)
         print("          LoRa Avionic Link Test & Flashing Manager             ")
@@ -577,7 +833,8 @@ def main():
         print("  3) Start Transmitter (Generate UUID & Initiate Test Session)")
         print("  4) Run Receiver Data Logger (Listen & Log to CSV)")
         print("  5) Analyze Packet Loss from Log")
-        print("  6) Exit")
+        print("  6) Connect to Peer (Tailscale IP) for Parameter Sync")
+        print("  7) Exit")
         print("=" * 64)
         
         if DEFAULT_PORT:
@@ -585,8 +842,13 @@ def main():
         else:
             print("[Current Port: None - Select option 1 to search]")
             
+        if tcp_sync_mgr.is_connected():
+            print(f"[Sync Status: Connected to {tcp_sync_mgr.get_peer_info()}]")
+        else:
+            print("[Sync Status: Disconnected]")
+            
         try:
-            choice = input("\nEnter option (1-5): ").strip()
+            choice = input("\nEnter option (1-7): ").strip()
             
             if choice == '1':
                 select_port()
@@ -599,7 +861,18 @@ def main():
             elif choice == '5':
                 analyze_log()
             elif choice == '6':
+                if tcp_sync_mgr.is_connected():
+                    disconnect_choice = input(f"Already connected to {tcp_sync_mgr.get_peer_info()}. Disconnect? (y/n): ").strip().lower()
+                    if disconnect_choice == 'y':
+                        tcp_sync_mgr.disconnect_peer()
+                else:
+                    ip = input("\nEnter peer's Tailscale IP: ").strip()
+                    if ip:
+                        tcp_sync_mgr.connect_to_peer(ip)
+                        time.sleep(1.0)
+            elif choice == '7':
                 print("\nExiting. Thank you!")
+                tcp_sync_mgr.close()
                 break
             else:
                 print("[ERROR] Invalid choice. Please select again.")

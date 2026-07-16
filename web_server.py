@@ -1,4 +1,5 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 import threading
 import json
 import urllib.parse
@@ -39,18 +40,27 @@ class SSEHandler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             
-            client_queue = threading.Event()
-            self.server.add_client(self, client_queue)
+            q = self.server.add_client()
             
             try:
-                # Keep connection alive with heartbeat
-                while not client_queue.wait(timeout=5.0):
-                    self.wfile.write(b": keepalive\n\n")
-                    self.wfile.flush()
+                while True:
+                    try:
+                        msg = q.get(timeout=5.0)
+                        if msg is None:
+                            break
+                        self.wfile.write(msg)
+                        self.wfile.flush()
+                    except Exception:
+                        # heartbeat keepalive
+                        try:
+                            self.wfile.write(b": keepalive\n\n")
+                            self.wfile.flush()
+                        except Exception:
+                            break
             except Exception:
                 pass
             finally:
-                self.server.remove_client(self)
+                self.server.remove_client(q)
                 
         elif path == '/api/status':
             status = self.server.get_status_callback()
@@ -79,11 +89,13 @@ class SSEHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def send_json_response(self, data, status_code=200):
+        body = json.dumps(data).encode('utf-8')
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Content-Length', str(len(body)))
         self.end_headers()
-        self.wfile.write(json.dumps(data).encode('utf-8'))
+        self.wfile.write(body)
 
     def serve_static_file(self, path):
         if path == '/' or path == '':
@@ -97,6 +109,8 @@ class SSEHandler(BaseHTTPRequestHandler):
 
         file_path = os.path.join(self.server.web_root, safe_path)
         if os.path.exists(file_path) and os.path.isfile(file_path):
+            with open(file_path, 'rb') as f:
+                content = f.read()
             self.send_response(200)
             
             # Determine content type
@@ -114,47 +128,48 @@ class SSEHandler(BaseHTTPRequestHandler):
                 self.send_header('Content-Type', 'application/octet-stream')
                 
             self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Length', str(len(content)))
             self.end_headers()
-            
-            with open(file_path, 'rb') as f:
-                self.wfile.write(f.read())
+            self.wfile.write(content)
         else:
             self.send_response(404)
             self.end_headers()
 
-class WebServer(HTTPServer):
+class ThreadingWebServer(ThreadingMixIn, HTTPServer):
+    """Multi-threaded HTTP server so SSE long-connections don't block POST requests."""
+    daemon_threads = True
+    
     def __init__(self, server_address, RequestHandlerClass, web_root, get_status_callback, execute_action_callback):
         super().__init__(server_address, RequestHandlerClass)
         self.web_root = web_root
         self.get_status_callback = get_status_callback
         self.execute_action_callback = execute_action_callback
-        self.clients = {}
+        self.clients = []
         self.clients_lock = threading.Lock()
 
-    def add_client(self, handler, event):
+    def add_client(self):
+        import queue
+        q = queue.Queue()
         with self.clients_lock:
-            self.clients[handler] = event
+            self.clients.append(q)
+        return q
 
-    def remove_client(self, handler):
+    def remove_client(self, q):
         with self.clients_lock:
-            if handler in self.clients:
-                del self.clients[handler]
+            if q in self.clients:
+                self.clients.remove(q)
 
     def broadcast(self, data_dict):
         msg = f"data: {json.dumps(data_dict)}\n\n".encode('utf-8')
         with self.clients_lock:
-            dead_clients = []
-            for handler in self.clients:
+            dead = []
+            for q in self.clients:
                 try:
-                    handler.wfile.write(msg)
-                    handler.wfile.flush()
+                    q.put_nowait(msg)
                 except Exception:
-                    dead_clients.append(handler)
-            
-            for handler in dead_clients:
-                if handler in self.clients:
-                    self.clients[handler].set()
-                    del self.clients[handler]
+                    dead.append(q)
+            for q in dead:
+                self.clients.remove(q)
 
 def start_web_server(port, web_root, get_status_callback, execute_action_callback):
     bound = False
@@ -162,7 +177,7 @@ def start_web_server(port, web_root, get_status_callback, execute_action_callbac
     server = None
     while not bound and attempts < 10:
         try:
-            server = WebServer(('0.0.0.0', port), SSEHandler, web_root, get_status_callback, execute_action_callback)
+            server = ThreadingWebServer(('0.0.0.0', port), SSEHandler, web_root, get_status_callback, execute_action_callback)
             bound = True
         except OSError:
             port += 1
@@ -174,5 +189,5 @@ def start_web_server(port, web_root, get_status_callback, execute_action_callbac
     server.web_port = port
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
-    print(f"[Web Server] Serving HTTP and API on http://127.0.0.1:{port} ...")
+    print(f"[Web Server] Serving HTTP and API on http://0.0.0.0:{port} ...")
     return server

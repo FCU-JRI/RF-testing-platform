@@ -163,6 +163,7 @@ class NodePanel(ttk.Frame):
         self.csv_file = None
         self.csv_writer = None
         self.session_stats = {}
+        self.tx_stats = {}     # Track TX packets per UUID
         self.peer_url = None   # set when connected via HTTP to a remote peer
         
         self.setup_ui()
@@ -392,10 +393,64 @@ class NodePanel(ttk.Frame):
                         iso = datetime.datetime.now().isoformat()
                         self.csv_writer.writerow([iso, "CRC_ERR", "N/A", self.current_uuid, "N/A", "N/A", "N/A"])
                         self.csv_file.flush()
+                elif line.startswith(("[PRE]", "[STRESS]", "[FORM]")):
+                    self.process_tx_log(line, now)
                 else:
                     self.out.write(f"{line}\n")
             except Exception as e:
                 break
+
+    def process_tx_log(self, line, now_str):
+        # Format: [FORM] SF7 | ID:5 | UUID:xxx-yyy | Len:255 | ToA:123ms
+        mode_map = {"[PRE]": "PRE-TEST", "[STRESS]": "STRESS", "[FORM]": "FORMAL"}
+        mode_tag = "UNKNOWN"
+        for k, v in mode_map.items():
+            if line.startswith(k):
+                mode_tag = v
+                break
+
+        def _get(key):
+            if f"{key}:" in line:
+                after = line.split(f"{key}:")[1]
+                return after.split(" | ")[0].strip()
+            return "N/A"
+
+        pkt_id_str = _get("ID")
+        uuid_str = _get("UUID")
+        toa = _get("ToA")
+        pkt_len = _get("Len")
+
+        try:
+            pkt_id = int(pkt_id_str)
+        except ValueError:
+            self.out.write(f"{line}\n")
+            return
+
+        # Track per-session TX stats
+        if uuid_str not in self.tx_stats:
+            self.tx_stats[uuid_str] = {"count": 0}
+        self.tx_stats[uuid_str]["count"] = pkt_id + 1
+        sent = self.tx_stats[uuid_str]["count"]
+
+        # Log TX packet to CSV
+        if uuid_str != self.current_uuid:
+            if self.csv_file: self.csv_file.close()
+            self.current_uuid = uuid_str
+            log_path = f"logs/tx_Node_{self.node_name}_session_{self.current_uuid}.csv"
+            exists = os.path.exists(log_path)
+            self.csv_file = open(log_path, 'a', newline='', encoding='utf-8')
+            self.csv_writer = csv.writer(self.csv_file)
+            if not exists:
+                self.csv_writer.writerow(["Timestamp", "Mode", "PacketID", "UUID", "Len_bytes", "ToA_ms"])
+                self.csv_file.flush()
+            self.out.write(f"\n[INFO] Logging TX data to: {log_path}\n")
+
+        iso = datetime.datetime.now().isoformat()
+        if self.csv_writer:
+            self.csv_writer.writerow([iso, mode_tag, pkt_id, uuid_str, pkt_len, toa])
+            self.csv_file.flush()
+
+        self.out.write(f"{now_str} | TX_{mode_tag} | ID:{pkt_id} | Sent:{sent} | Len:{pkt_len}B | ToA:{toa}\n")
 
     def process_rx_log(self, line, now_str):
         # Format: +RCV:FRM:0:uuid:*** | SNR:9.50 | RSSI:-45

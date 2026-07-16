@@ -163,6 +163,7 @@ class NodePanel(ttk.Frame):
         self.csv_file = None
         self.csv_writer = None
         self.session_stats = {}
+        self.peer_url = None   # set when connected via HTTP to a remote peer
         
         self.setup_ui()
         
@@ -246,6 +247,18 @@ class NodePanel(ttk.Frame):
         else:
             self.out.write(f"[GUI] Node {self.node_name} switched to Transmitter. Ready to initiate test.\n")
 
+    def http_sync_send(self, cmd):
+        """POST a command to the remote peer's API server."""
+        if not self.peer_url:
+            return
+        try:
+            payload = json.dumps({"action": "send_command", "cmd": cmd}).encode('utf-8')
+            req = urllib.request.Request(self.peer_url.rstrip('/') + '/api/control', data=payload)
+            req.add_header('Content-Type', 'application/json')
+            urllib.request.urlopen(req, timeout=2)
+        except Exception as e:
+            self.out.write(f"[SYNC] HTTP send failed: {e}\n")
+
     def toggle_connection(self):
         if not self.running:
             port = self.port_cb.get().strip()
@@ -255,8 +268,10 @@ class NodePanel(ttk.Frame):
             try:
                 if port.startswith("http://") or port.startswith("https://"):
                     self.serial_conn = HttpSseSerialBridge(port)
+                    self.peer_url = port
                 else:
                     self.serial_conn = serial.serial_for_url(port, baudrate=115200, timeout=0.1)
+                    self.peer_url = None
                 self.running = True
                 self.btn_conn.config(text="Disconnect")
                 self.out.write(f"[INFO] Connected to {port}\n")
@@ -274,14 +289,30 @@ class NodePanel(ttk.Frame):
             if self.csv_file:
                 self.csv_file.close()
                 self.csv_file = None
+            self.peer_url = None
             self.btn_conn.config(text="Connect")
             self.out.write("[INFO] Disconnected\n")
 
     def send_raw(self, cmd, from_sync=False):
+        global gui_app
         if self.running and self.serial_conn:
             self.serial_conn.write((cmd + '\n').encode())
             if not from_sync:
-                sync_send_command(cmd)
+                if isinstance(self.serial_conn, HttpSseSerialBridge):
+                    # HTTP mode: command already forwarded via HttpSseSerialBridge.write()
+                    # Additionally push to the other local NodePanel if it's a local COM
+                    if gui_app:
+                        peer = gui_app.nodeB if self.node_name == 'A' else gui_app.nodeA
+                        if peer and peer.running and peer.serial_conn and not isinstance(peer.serial_conn, HttpSseSerialBridge):
+                            peer.send_raw(cmd, from_sync=True)
+                else:
+                    # Local COM: forward command to remote peer's API if connected via HTTP
+                    if gui_app:
+                        peer = gui_app.nodeB if self.node_name == 'A' else gui_app.nodeA
+                        if peer and peer.peer_url:
+                            threading.Thread(target=peer.http_sync_send, args=(cmd,), daemon=True).start()
+                    # Also TCP sync for legacy Tailscale mode
+                    sync_send_command(cmd)
 
     def apply_settings(self):
         f_val = self.dyn_f.get()

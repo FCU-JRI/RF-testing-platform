@@ -20,6 +20,10 @@ const int packetLimit = 100;
 int targetPayloadLength = 255; 
 String currentUUID = "N/A";    
 
+long currentFreq = LORA_FREQ;
+long currentBW = 125000;
+int currentCR = 6;
+
 void handleSerial();
 void sendPacket();
 void updateParams(int sf);
@@ -36,22 +40,20 @@ void setup() {
   Serial.setTimeout(50); 
   
   prefs.begin("lora_cfg", false);
-  long saved_freq = prefs.getLong("freq", LORA_FREQ);
-  long saved_bw = prefs.getLong("bw", 125000);
-  int saved_cr = prefs.getInt("cr", 6);
-  int saved_len = prefs.getInt("len", 255);
+  currentFreq = prefs.getLong("freq", LORA_FREQ);
+  currentBW = prefs.getLong("bw", 125000);
+  currentCR = prefs.getInt("cr", 6);
+  targetPayloadLength = prefs.getInt("len", 255);
   int saved_sf = prefs.getInt("sf", 7);
   
-  targetPayloadLength = saved_len;
-
   Serial.print("\n=== LoRa 整合測試端初始化 [頻率: ");
-  Serial.print(saved_freq / 1E6);
+  Serial.print(currentFreq / 1E6);
   Serial.println(" MHz] ===");
 
-  lora_init(saved_freq);
+  lora_init(currentFreq);
   
-  lora_set_bandwidth(saved_bw);
-  lora_set_coding_rate(saved_cr);
+  lora_set_bandwidth(currentBW);
+  lora_set_coding_rate(currentCR);
   lora_set_preamble_length(12);
   lora_set_sync_word(0xF1);
   lora_enable_crc();      
@@ -155,14 +157,16 @@ void handleSerial() {
     } else if (lowerInput.startsWith("l ")) {
       int len = 0;
       if (sscanf(lowerInput.c_str(), "l %d", &len) == 1) {
-        if (len >= 10 && len <= 255) {
+        if (len >= 45 && len <= 255) {
           lora_idle(); // 加入這行，讓底層晶片重新進入 RX 時能套用新的 expected_length (針對 SF6 隱含標頭)
-          targetPayloadLength = len;
-          prefs.putInt("len", targetPayloadLength);
+          if (targetPayloadLength != len) {
+            targetPayloadLength = len;
+            prefs.putInt("len", targetPayloadLength);
+          }
           Serial.print("\n>>> [設定] 目標封包長度已更改為: "); 
           Serial.print(targetPayloadLength); Serial.println(" Bytes");
         } else {
-          Serial.println(">>> 參數錯誤：長度需介於 10 到 255 Bytes 之間");
+          Serial.println(">>> 參數錯誤：長度需介於 45 到 255 Bytes 之間");
         }
       } else {
         Serial.println(">>> 格式錯誤：請使用 l [長度] (例如 l 255)");
@@ -173,7 +177,10 @@ void handleSerial() {
       if (sscanf(lowerInput.c_str(), "f %ld", &freq) == 1) {
         lora_idle();
         lora_set_frequency(freq);
-        prefs.putLong("freq", freq);
+        if (currentFreq != freq) {
+          currentFreq = freq;
+          prefs.putLong("freq", currentFreq);
+        }
         Serial.print("+SET_OK: Freq="); 
         Serial.print(freq / 1E6); Serial.println("MHz");
       }
@@ -182,7 +189,10 @@ void handleSerial() {
       if (sscanf(lowerInput.c_str(), "b %ld", &bw) == 1) {
         lora_idle();
         lora_set_bandwidth(bw);
-        prefs.putLong("bw", bw);
+        if (currentBW != bw) {
+          currentBW = bw;
+          prefs.putLong("bw", currentBW);
+        }
         Serial.print("+SET_OK: BW="); 
         Serial.println(bw);
       }
@@ -191,7 +201,10 @@ void handleSerial() {
       if (sscanf(lowerInput.c_str(), "c %d", &cr) == 1) {
         lora_idle();
         lora_set_coding_rate(cr);
-        prefs.putInt("cr", cr);
+        if (currentCR != cr) {
+          currentCR = cr;
+          prefs.putInt("cr", currentCR);
+        }
         Serial.print("+SET_OK: CR=4/"); 
         Serial.println(cr);
       }
@@ -199,8 +212,11 @@ void handleSerial() {
       int sf = 0;
       if (sscanf(lowerInput.c_str(), "v %d", &sf) == 1) {
         if (sf >= 6 && sf <= 12) {
+          int savedSF = prefs.getInt("sf", 7);
           updateParams(sf);
-          prefs.putInt("sf", sf);
+          if (savedSF != sf) {
+            prefs.putInt("sf", sf);
+          }
           Serial.print("+SET_OK: RX_SF="); 
           Serial.println(sf);
         }

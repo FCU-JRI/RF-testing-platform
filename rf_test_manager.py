@@ -19,10 +19,28 @@ import re
 import csv
 import subprocess
 import datetime
+import threading
+
+try:
+    import msvcrt
+    IS_WINDOWS = True
+except ImportError:
+    import select
+    import termios
+    import tty
+    IS_WINDOWS = False
 
 import serial
 import serial.tools.list_ports
 from tcp_sync import TCPSyncManager
+
+# Thread safety lock for serial access
+serial_lock = threading.Lock()
+
+# Save original terminal settings for UNIX character-level non-blocking input
+orig_settings = None
+if not IS_WINDOWS:
+    orig_settings = termios.tcgetattr(sys.stdin)
 
 # Default configuration parameters
 DEFAULT_PORT = None
@@ -32,6 +50,66 @@ ACTIVE_SERIAL = None
 CURRENT_SF = "UNKNOWN"
 CURRENT_FREQ = "UNKNOWN"
 web_srv = None
+
+# Input buffer for Windows/UNIX non-blocking input
+input_buffer = []
+
+def get_input_nonblocking():
+    global input_buffer
+    if IS_WINDOWS:
+        while msvcrt.kbhit():
+            ch_bytes = msvcrt.getch()
+            if ch_bytes in (b'\xe0', b'\x00'):
+                if msvcrt.kbhit():
+                    msvcrt.getch()
+                continue
+            try:
+                ch = ch_bytes.decode('utf-8', errors='ignore')
+            except Exception:
+                continue
+            if ch in ('\r', '\n'):
+                line = "".join(input_buffer)
+                input_buffer = []
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                return line
+            elif ch == '\x08': # backspace
+                if input_buffer:
+                    input_buffer.pop()
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+            elif ch >= ' ':
+                input_buffer.append(ch)
+                sys.stdout.write(ch)
+                sys.stdout.flush()
+        return None
+    else:
+        # UNIX implementation using termios/cbreak
+        fd = sys.stdin.fileno()
+        rlist, _, _ = select.select([sys.stdin], [], [], 0)
+        if rlist:
+            try:
+                tty.setcbreak(fd)
+                ch = sys.stdin.read(1)
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, orig_settings)
+            
+            if ch in ('\n', '\r'):
+                line = "".join(input_buffer)
+                input_buffer = []
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                return line
+            elif ch in ('\x7f', '\x08'): # Backspace
+                if input_buffer:
+                    input_buffer.pop()
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+            elif ch >= ' ':
+                input_buffer.append(ch)
+                sys.stdout.write(ch)
+                sys.stdout.flush()
+        return None
 
 def update_state_from_cmd(cmd):
     global CURRENT_SF, CURRENT_FREQ
@@ -87,7 +165,9 @@ def sync_send_command(cmd):
 
 def write_to_serial(ser, cmd):
     try:
-        ser.write((cmd.strip() + '\n').encode('utf-8'))
+        with serial_lock:
+            if ser and ser.is_open:
+                ser.write((cmd.strip() + '\n').encode('utf-8'))
         sync_send_command(cmd)
     except Exception as e:
         print(f"[ERROR] Failed to write to serial: {e}")
@@ -280,10 +360,6 @@ def start_transmitter():
             print("[INFO] 您可以在此直接輸入 'x' 停止發射，或按 Ctrl+C 中斷目前測試並回到測試選單。")
             print(f"\n{'Time':<8} | {'Mode':<8} | {'SF':<4} | {'ID':<5} | {'UUID':<36} | {'Len':<5} | {'ToA':<6}")
             print("-" * 85)
-            
-            import sys
-            import select
-            
             try:
                 with open(log_path, 'w', newline='', encoding='utf-8') as f:
                     csv_writer = csv.writer(f)
@@ -291,10 +367,9 @@ def start_transmitter():
                     
                     while True:
                         # 非阻塞讀取鍵盤輸入
-                        if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
-                            kbd_cmd = sys.stdin.readline().strip()
-                            if kbd_cmd:
-                                write_to_serial(ser, kbd_cmd)
+                        kbd_cmd = get_input_nonblocking()
+                        if kbd_cmd:
+                            write_to_serial(ser, kbd_cmd)
                         
                         # 檢查 Serial 資料
                         if ser.in_waiting:
@@ -347,8 +422,9 @@ def start_transmitter():
             while ser.in_waiting:
                 print(f"[DEVICE] {ser.readline().decode('utf-8', errors='ignore').strip()}")
                 
-    ACTIVE_SERIAL = None
-    ser.close()
+    with serial_lock:
+        ACTIVE_SERIAL = None
+        ser.close()
     print("[INFO] Connection closed.")
 
 
@@ -373,7 +449,7 @@ def run_receiver_logger():
     print("[INFO] 您可以在此終端機輸入指令（如 'r' 重置統計、'6'-'12' 切換 SF）並按下 Enter 送出。")
     
     try:
-        ser = serial.Serial(DEFAULT_PORT, 115200, timeout=1.0)
+        ser = serial.Serial(DEFAULT_PORT, 115200, timeout=0.05)
         ACTIVE_SERIAL = ser
     except Exception as e:
         print(f"[ERROR] Failed to connect to serial port {DEFAULT_PORT}: {e}")
@@ -384,20 +460,6 @@ def run_receiver_logger():
         print(f"[INFO] Automatically switching Receiver to SF{CURRENT_SF}...")
         write_to_serial(ser, CURRENT_SF)
         time.sleep(0.5)
-        
-    # 建立背景執行緒監聽鍵盤輸入，並轉發給接收端 ESP32
-    import threading
-    def keyboard_listener():
-        while True:
-            try:
-                cmd = input().strip()
-                if cmd:
-                    write_to_serial(ser, cmd)
-            except (KeyboardInterrupt, EOFError, Exception):
-                break
-
-    input_thread = threading.Thread(target=keyboard_listener, daemon=True)
-    input_thread.start()
         
     # Create logs directory
     os.makedirs('logs', exist_ok=True)
@@ -415,6 +477,10 @@ def run_receiver_logger():
     
     try:
         while True:
+            kbd_cmd = get_input_nonblocking()
+            if kbd_cmd:
+                write_to_serial(ser, kbd_cmd)
+                
             line = ser.readline().decode('utf-8', errors='ignore').strip()
             if not line:
                 continue
@@ -573,8 +639,9 @@ def run_receiver_logger():
     finally:
         if f:
             f.close()
-        ACTIVE_SERIAL = None
-        ser.close()
+        with serial_lock:
+            ACTIVE_SERIAL = None
+            ser.close()
 
 def analyze_log():
     """Lists CSV logs and analyzes the packet loss rate for the selected log."""
@@ -813,14 +880,15 @@ def main():
         update_state_from_cmd(cmd)
         if web_srv:
             web_srv.broadcast({"type": "peer_cmd", "cmd": cmd})
-        if ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
-            try:
-                ACTIVE_SERIAL.write((cmd.strip() + '\n').encode('utf-8'))
-                print(f"\n[TCP Sync] Peer synchronized command: {cmd}")
-            except Exception as e:
-                print(f"\n[TCP Sync] Error writing to serial: {e}")
-        else:
-            print(f"\n[TCP Sync] Peer sent command '{cmd}', but serial port is not active.")
+        with serial_lock:
+            if ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
+                try:
+                    ACTIVE_SERIAL.write((cmd.strip() + '\n').encode('utf-8'))
+                    print(f"\n[TCP Sync] Peer synchronized command: {cmd}")
+                except Exception as e:
+                    print(f"\n[TCP Sync] Error writing to serial: {e}")
+            else:
+                print(f"\n[TCP Sync] Peer sent command '{cmd}', but serial port is not active.")
 
     tcp_sync_mgr = TCPSyncManager(port=50077, on_command_received=on_cmd_rcv, log_func=print)
 

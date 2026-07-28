@@ -227,24 +227,10 @@ def flash_firmware():
             
 
     # Manage the PlatformIO 'src/' compilation directory
-    src_dir = os.path.abspath('src')
-    os.makedirs(src_dir, exist_ok=True)
-    
-    # Clean up the src folder to avoid multiple setups/loops
-    for filename in os.listdir(src_dir):
-        if filename.endswith('.cpp'):
-            os.remove(os.path.join(src_dir, filename))
-            
-    # Source master file
-    master_file = "rfTestV6.cpp"
-    sandbox_file = os.path.join(src_dir, master_file)
-    
-    if not os.path.exists(master_file):
-        print(f"[ERROR] Master file {master_file} not found in workspace root!")
+    src_file = os.path.join(os.path.abspath('src'), "rfTestV6.cpp")
+    if not os.path.exists(src_file):
+        print(f"[ERROR] Source file {src_file} not found!")
         return False
-        
-    import shutil
-    shutil.copy2(master_file, sandbox_file)
     
     print(f"\n[INFO] Starting compile and upload for: rfTestV6")
     print(f"[INFO] Upload Port: {DEFAULT_PORT}")

@@ -277,18 +277,18 @@ class NodePanel(ttk.Frame):
         c = cmd.strip()
         return any(c.startswith(p) for p in self.RF_PARAM_PREFIXES)
 
-    def send_raw(self, cmd, from_sync=False):
+    def send_raw(self, cmd, is_forwarded=False):
         global gui_app
         if self.running and self.serial_conn:
             self.serial_conn.write((cmd + '\n').encode())
-            if not from_sync:
+            if not is_forwarded:
                 if isinstance(self.serial_conn, HttpSseSerialBridge):
                     # HTTP mode: command already forwarded via HttpSseSerialBridge.write()
                     # Additionally push RF params to the other local NodePanel if it's a local COM
                     if gui_app and self._is_rf_param_cmd(cmd):
                         peer = gui_app.nodeB if self.node_name == 'A' else gui_app.nodeA
                         if peer and peer.running and peer.serial_conn and not isinstance(peer.serial_conn, HttpSseSerialBridge):
-                            peer.send_raw(cmd, from_sync=True)
+                            peer.send_raw(cmd, is_forwarded=True)
                 else:
                     # Local COM: forward RF params to remote peer's API if connected via HTTP
                     if gui_app and self._is_rf_param_cmd(cmd):
@@ -572,21 +572,10 @@ class RfTestManagerGUI(tk.Tk):
                 self.flash_out.write("[ERROR] Invalid port selected.\n")
                 return
                 
-            src_dir = os.path.abspath('src')
-            os.makedirs(src_dir, exist_ok=True)
-            
-            for filename in os.listdir(src_dir):
-                if filename.endswith('.cpp'):
-                    os.remove(os.path.join(src_dir, filename))
-                    
-            master_file = "rfTestV6.cpp"
-            sandbox_file = os.path.join(src_dir, master_file)
-            
-            if not os.path.exists(master_file):
-                self.flash_out.write(f"[ERROR] Master file {master_file} not found in root!\n")
+            src_file = os.path.join(os.path.abspath('src'), "rfTestV6.cpp")
+            if not os.path.exists(src_file):
+                self.flash_out.write(f"[ERROR] Source file {src_file} not found!\n")
                 return
-                
-            shutil.copy2(master_file, sandbox_file)
             
             self.flash_out.write(f"[INFO] Uploading rfTestV6 to {port}...\n")
             

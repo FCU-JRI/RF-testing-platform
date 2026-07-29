@@ -58,6 +58,11 @@ class NodePanel(ttk.Frame):
         self.peer_url = None   # set when connected via HTTP to a remote peer
         
         self.setup_ui()
+
+    def on_refresh(self):
+        global gui_app
+        if gui_app:
+            gui_app.refresh_ports()
         
     def setup_ui(self):
         # Connection Frame

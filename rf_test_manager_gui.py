@@ -65,8 +65,13 @@ class NodePanel(ttk.Frame):
         conn_frame.pack(fill='x', pady=5)
         
         ttk.Label(conn_frame, text="Port / Peer:").pack(side='left', padx=2)
-        self.port_cb = ttk.Combobox(conn_frame, width=24)
-        self.port_cb.pack(side='left', padx=5)
+        self.port_cb = ttk.Combobox(conn_frame, width=20)
+        self.port_cb.pack(side='left', padx=2)
+        self.port_cb.bind("<Button-1>", lambda e: self.on_refresh())
+        
+        self.btn_refresh = ttk.Button(conn_frame, text="🔄", width=3, command=self.on_refresh)
+        self.btn_refresh.pack(side='left', padx=2)
+        
         self.btn_conn = ttk.Button(conn_frame, text="Connect", command=self.toggle_connection)
         self.btn_conn.pack(side='left', padx=5)
         
@@ -520,6 +525,11 @@ class RfTestManagerGUI(tk.Tk):
             else:
                 self.nodeB.port_cb.current(0)
             
+    def on_refresh(self):
+        global gui_app
+        if gui_app:
+            gui_app.refresh_ports()
+
     # --- FLASHER TAB ---
     def create_flash_tab(self):
         frame = ttk.Frame(self.tab_flash, padding=10)
@@ -529,9 +539,11 @@ class RfTestManagerGUI(tk.Tk):
         ctrl_frame.pack(fill='x', pady=5)
         
         ttk.Label(ctrl_frame, text="Port:").grid(row=0, column=0, sticky='w', pady=2)
-        self.flash_port_cb = ttk.Combobox(ctrl_frame, width=30)
+        self.flash_port_cb = ttk.Combobox(ctrl_frame, width=25)
         self.flash_port_cb.grid(row=0, column=1, padx=5, pady=2)
-        ttk.Button(ctrl_frame, text="Refresh Ports", command=self.refresh_ports).grid(row=0, column=2, padx=5, pady=2)
+        self.flash_port_cb.bind("<Button-1>", lambda e: self.refresh_ports())
+        
+        ttk.Button(ctrl_frame, text="🔄 Refresh", command=self.refresh_ports).grid(row=0, column=2, padx=5, pady=2)
         
         self.btn_flash = ttk.Button(ctrl_frame, text="Flash Firmware", command=self.start_flash_thread)
         self.btn_flash.grid(row=1, column=0, columnspan=3, pady=10)

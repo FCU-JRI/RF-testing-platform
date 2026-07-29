@@ -464,6 +464,20 @@ class RfTestManagerGUI(tk.Tk):
         self.notebook.add(self.tab_dual, text="Dual Nodes View")
         self.notebook.add(self.tab_analysis, text="Log Analyzer")
 
+        self.create_flash_tab()
+        
+        self.paned_dual = ttk.PanedWindow(self.tab_dual, orient=tk.HORIZONTAL)
+        self.paned_dual.pack(fill='both', expand=True, padx=5, pady=5)
+        
+        self.nodeA = NodePanel(self.paned_dual, "A")
+        self.paned_dual.add(self.nodeA, weight=1)
+        
+        self.nodeB = NodePanel(self.paned_dual, "B")
+        self.paned_dual.add(self.nodeB, weight=1)
+        
+        self.create_analysis_tab()
+        self.refresh_ports()
+
     def configure_styles(self):
         style = ttk.Style(self)
         style.theme_use('clam')
@@ -488,20 +502,6 @@ class RfTestManagerGUI(tk.Tk):
         style.configure('TNotebook', background=bg_dark, borderwidth=0)
         style.configure('TNotebook.Tab', background=card_bg, foreground=text_light, padding=[12, 6], font=('Inter', 10, 'bold'))
         style.map('TNotebook.Tab', background=[('selected', accent_blue)], foreground=[('selected', bg_dark)])
-        
-        self.create_flash_tab()
-        
-        self.paned_dual = ttk.PanedWindow(self.tab_dual, orient=tk.HORIZONTAL)
-        self.paned_dual.pack(fill='both', expand=True, padx=5, pady=5)
-        
-        self.nodeA = NodePanel(self.paned_dual, "A")
-        self.paned_dual.add(self.nodeA, weight=1)
-        
-        self.nodeB = NodePanel(self.paned_dual, "B")
-        self.paned_dual.add(self.nodeB, weight=1)
-        
-        self.create_analysis_tab()
-        self.refresh_ports()
         
     def refresh_ports(self):
         ports = [p.device for p in serial.tools.list_ports.comports()]

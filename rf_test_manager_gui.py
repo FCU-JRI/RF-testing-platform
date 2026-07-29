@@ -18,6 +18,9 @@ from tkinter import ttk, messagebox, scrolledtext
 import serial
 import serial.tools.list_ports
 import shutil
+from lora_codec import LoRaCommandCodec
+from lora_telemetry import LoRaTelemetryEngine
+from lora_session import LoRaSessionEngine, SerialTransport
 
 class HttpSseSerialBridge:
     def __init__(self, base_url):

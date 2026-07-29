@@ -32,7 +32,9 @@ except ImportError:
 
 import serial
 import serial.tools.list_ports
-from tcp_sync import TCPSyncManager
+from lora_codec import LoRaCommandCodec
+from lora_telemetry import LoRaTelemetryEngine
+from lora_session import LoRaSessionEngine, SerialTransport
 
 # Thread safety lock for serial access
 serial_lock = threading.Lock()
@@ -45,7 +47,6 @@ if not IS_WINDOWS:
 # Default configuration parameters
 DEFAULT_PORT = None
 AVAILABLE_PORTS = []
-tcp_sync_mgr = None
 ACTIVE_SERIAL = None
 CURRENT_SF = "UNKNOWN"
 CURRENT_FREQ = "UNKNOWN"
@@ -140,35 +141,12 @@ def update_state_from_cmd(cmd):
                 CURRENT_SF = val
                 print(f"[TCP Sync] State Updated: Spreading Factor = SF{CURRENT_SF}")
 
-def sync_send_command(cmd):
-    global tcp_sync_mgr
-    update_state_from_cmd(cmd)
-    if not tcp_sync_mgr or not tcp_sync_mgr.is_connected():
-        return
-    cmd = cmd.strip()
-    if cmd.isdigit() and 6 <= int(cmd) <= 12:
-        tcp_sync_mgr.send_command(f"v {cmd}")
-    elif cmd == 'p':
-        tcp_sync_mgr.send_command("v 7")
-    elif cmd.startswith("p "):
-        parts = cmd.split()
-        sf = parts[1] if len(parts) > 1 else "7"
-        tcp_sync_mgr.send_command(f"v {sf}")
-    elif cmd.startswith("s "):
-        parts = cmd.split()
-        sf = parts[1] if len(parts) > 1 else "7"
-        tcp_sync_mgr.send_command(f"v {sf}")
-    elif cmd == 'x':
-        tcp_sync_mgr.send_command("x")
-    elif any(cmd.startswith(prefix) for prefix in ["f ", "b ", "c ", "l ", "u ", "v "]):
-        tcp_sync_mgr.send_command(cmd)
-
 def write_to_serial(ser, cmd):
     try:
+        update_state_from_cmd(cmd)
         with serial_lock:
             if ser and ser.is_open:
                 ser.write((cmd.strip() + '\n').encode('utf-8'))
-        sync_send_command(cmd)
     except Exception as e:
         print(f"[ERROR] Failed to write to serial: {e}")
 
@@ -725,23 +703,19 @@ def analyze_log():
         print(f"[ERROR] Failed to read or parse CSV: {e}")
 
 def get_web_status():
-    global ACTIVE_SERIAL, tcp_sync_mgr, CURRENT_SF, CURRENT_FREQ, web_srv
+    global ACTIVE_SERIAL, CURRENT_SF, CURRENT_FREQ, web_srv
     serial_port_name = ACTIVE_SERIAL.port if (ACTIVE_SERIAL and ACTIVE_SERIAL.is_open) else None
     
     import serial.tools.list_ports
     ports = [p.device for p in serial.tools.list_ports.comports()]
-    
-    peer_connected = tcp_sync_mgr.is_connected() if tcp_sync_mgr else False
-    peer_ip = tcp_sync_mgr.peer_ip if tcp_sync_mgr else None
-    local_tcp_port = tcp_sync_mgr.port if tcp_sync_mgr else 50077
     local_web_port = web_srv.web_port if web_srv else 8080
     
     return {
         "serial_connected": serial_port_name is not None,
         "serial_port": serial_port_name,
-        "peer_connected": peer_connected,
-        "peer_ip": peer_ip,
-        "local_port": local_tcp_port,
+        "peer_connected": False,
+        "peer_ip": None,
+        "local_port": 50077,
         "web_port": local_web_port,
         "current_sf": CURRENT_SF,
         "current_freq": CURRENT_FREQ,
@@ -749,7 +723,7 @@ def get_web_status():
     }
 
 def execute_web_action(action, params):
-    global ACTIVE_SERIAL, tcp_sync_mgr
+    global ACTIVE_SERIAL
     
     if action == 'send_command':
         cmd = params.get('cmd')
@@ -757,55 +731,6 @@ def execute_web_action(action, params):
             write_to_serial(ACTIVE_SERIAL, cmd)
             return {"status": "ok"}
         return {"status": "error", "message": "Serial port not active or command empty"}
-        
-    elif action == 'connect_peer':
-        ip = params.get('ip')
-        if ip and tcp_sync_mgr:
-            tcp_sync_mgr.connect_to_peer(ip)
-            return {"status": "ok"}
-        return {"status": "error", "message": "Sync manager not active or IP empty"}
-        
-    elif action == 'disconnect_peer':
-        if tcp_sync_mgr:
-            tcp_sync_mgr.disconnect_peer()
-            return {"status": "ok"}
-        return {"status": "error", "message": "Sync manager not active"}
-        
-    elif action == 'send_command_sync':
-        cmd = params.get('cmd')
-        if cmd:
-            sync_send_command(cmd)
-            return {"status": "ok"}
-        return {"status": "error", "message": "Command empty"}
-        
-    elif action == 'apply_settings_sync':
-        freq = params.get('freq')
-        bw = params.get('bw')
-        cr = params.get('cr')
-        sf = params.get('sf')
-        length = params.get('len')
-        
-        if freq: sync_send_command(f"f {int(float(freq)*1E6)}")
-        if bw: sync_send_command(f"b {bw}")
-        if cr: sync_send_command(f"c {cr}")
-        if sf: sync_send_command(f"v {sf}")
-        if length: sync_send_command(f"l {length}")
-        return {"status": "ok"}
-        
-    elif action == 'start_test_sync':
-        test_type = params.get('type')
-        sf = params.get('sf', '7')
-        interval = params.get('interval', '150')
-        
-        if test_type == 'formal':
-            sync_send_command(sf)
-        elif test_type == 'pre':
-            sync_send_command(f"p {sf}")
-        elif test_type == 'stress':
-            sync_send_command(f"s {sf} {interval}")
-        elif test_type == 'stop':
-            sync_send_command("x")
-        return {"status": "ok"}
         
     elif action == 'apply_settings':
         freq = params.get('freq')
@@ -815,21 +740,11 @@ def execute_web_action(action, params):
         length = params.get('len')
         
         if ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
-            if freq:
-                write_to_serial(ACTIVE_SERIAL, f"f {int(float(freq)*1E6)}")
-                time.sleep(0.05)
-            if bw:
-                write_to_serial(ACTIVE_SERIAL, f"b {bw}")
-                time.sleep(0.05)
-            if cr:
-                write_to_serial(ACTIVE_SERIAL, f"c {cr}")
-                time.sleep(0.05)
-            if sf:
-                write_to_serial(ACTIVE_SERIAL, f"v {sf}")
-                time.sleep(0.05)
-            if length:
-                write_to_serial(ACTIVE_SERIAL, f"l {length}")
-                time.sleep(0.05)
+            if freq: write_to_serial(ACTIVE_SERIAL, f"f {int(float(freq)*1E6)}")
+            if bw: write_to_serial(ACTIVE_SERIAL, f"b {bw}")
+            if cr: write_to_serial(ACTIVE_SERIAL, f"c {cr}")
+            if sf: write_to_serial(ACTIVE_SERIAL, f"v {sf}")
+            if length: write_to_serial(ACTIVE_SERIAL, f"l {length}")
             return {"status": "ok"}
         return {"status": "error", "message": "Serial port not active"}
         
@@ -839,45 +754,25 @@ def execute_web_action(action, params):
         interval = params.get('interval', '150')
         
         if ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
-            if test_type == 'formal':
-                write_to_serial(ACTIVE_SERIAL, sf)
-            elif test_type == 'pre':
-                write_to_serial(ACTIVE_SERIAL, f"p {sf}")
-            elif test_type == 'stress':
-                write_to_serial(ACTIVE_SERIAL, f"s {sf} {interval}")
-            elif test_type == 'stop':
-                write_to_serial(ACTIVE_SERIAL, "x")
+            if test_type == 'formal': write_to_serial(ACTIVE_SERIAL, sf)
+            elif test_type == 'pre': write_to_serial(ACTIVE_SERIAL, f"p {sf}")
+            elif test_type == 'stress': write_to_serial(ACTIVE_SERIAL, f"s {sf} {interval}")
+            elif test_type == 'stop': write_to_serial(ACTIVE_SERIAL, "x")
             return {"status": "ok"}
         return {"status": "error", "message": "Serial port not active"}
+        
+    return {"status": "error", "message": f"Unknown action: {action}"}
         
     return {"status": "error", "message": f"Unknown action: {action}"}
 
 def main():
     """Main execution menu loop."""
-    global tcp_sync_mgr, web_srv
+    global web_srv
     
     # Initialize Web Server (port 8080 default, serving current directory)
     from web_server import start_web_server
     web_srv = start_web_server(8080, os.path.dirname(os.path.abspath(__file__)), get_web_status, execute_web_action)
     
-    # Initialize TCP Sync Manager
-    def on_cmd_rcv(cmd):
-        global ACTIVE_SERIAL, web_srv
-        update_state_from_cmd(cmd)
-        if web_srv:
-            web_srv.broadcast({"type": "peer_cmd", "cmd": cmd})
-        with serial_lock:
-            if ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
-                try:
-                    ACTIVE_SERIAL.write((cmd.strip() + '\n').encode('utf-8'))
-                    print(f"\n[TCP Sync] Peer synchronized command: {cmd}")
-                except Exception as e:
-                    print(f"\n[TCP Sync] Error writing to serial: {e}")
-            else:
-                print(f"\n[TCP Sync] Peer sent command '{cmd}', but serial port is not active.")
-
-    tcp_sync_mgr = TCPSyncManager(port=50077, on_command_received=on_cmd_rcv, log_func=print)
-
     while True:
         print("\n" + "=" * 64)
         print("          LoRa Avionic Link Test & Flashing Manager             ")
@@ -887,8 +782,7 @@ def main():
         print("  3) Start Transmitter (Generate UUID & Initiate Test Session)")
         print("  4) Run Receiver Data Logger (Listen & Log to CSV)")
         print("  5) Analyze Packet Loss from Log")
-        print("  6) Connect to Peer (Tailscale IP) for Parameter Sync")
-        print("  7) Exit")
+        print("  6) Exit")
         print("=" * 64)
         
         if DEFAULT_PORT:
@@ -896,13 +790,8 @@ def main():
         else:
             print("[Current Port: None - Select option 1 to search]")
             
-        if tcp_sync_mgr.is_connected():
-            print(f"[Sync Status: Connected to {tcp_sync_mgr.get_peer_info()}]")
-        else:
-            print("[Sync Status: Disconnected]")
-            
         try:
-            choice = input("\nEnter option (1-7): ").strip()
+            choice = input("\nEnter option (1-6): ").strip()
             
             if choice == '1':
                 select_port()
@@ -915,18 +804,7 @@ def main():
             elif choice == '5':
                 analyze_log()
             elif choice == '6':
-                if tcp_sync_mgr.is_connected():
-                    disconnect_choice = input(f"Already connected to {tcp_sync_mgr.get_peer_info()}. Disconnect? (y/n): ").strip().lower()
-                    if disconnect_choice == 'y':
-                        tcp_sync_mgr.disconnect_peer()
-                else:
-                    ip = input("\nEnter peer's Tailscale IP: ").strip()
-                    if ip:
-                        tcp_sync_mgr.connect_to_peer(ip)
-                        time.sleep(1.0)
-            elif choice == '7':
                 print("\nExiting. Thank you!")
-                tcp_sync_mgr.close()
                 break
             else:
                 print("[ERROR] Invalid choice. Please select again.")

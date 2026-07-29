@@ -298,6 +298,19 @@ class NodePanel(ttk.Frame):
         sf = self.dyn_s.get()
         interval = self.tx_int.get()
         
+        sf_int = int(sf) if sf.isdigit() else 7
+        safe_min = LoRaCommandCodec.get_safe_interval(sf_int)
+        try:
+            user_int = int(interval)
+        except ValueError:
+            user_int = 150
+
+        if user_int < safe_min:
+            user_int = safe_min
+            self.tx_int.set(str(safe_min))
+            self.out.write(f"[INFO] Interval auto-clamped to safe minimum for SF{sf_int}: {safe_min}ms (ToA protection)\n")
+        interval = str(user_int)
+        
         if test_type == "formal":
             self.send_raw(f"{sf}")
         elif test_type == "stress":

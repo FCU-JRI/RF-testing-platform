@@ -17,5 +17,10 @@ class TestLoRaCommandCodec(unittest.TestCase):
         self.assertEqual(LoRaCommandCodec.encode_test_start('stress', sf=7, interval_ms=150), ["s 7 150"])
         self.assertEqual(LoRaCommandCodec.encode_test_start('stop'), ["x"])
 
+    def test_safe_interval_clamping(self):
+        self.assertEqual(LoRaCommandCodec.get_safe_interval(7), 150)
+        self.assertEqual(LoRaCommandCodec.get_safe_interval(10), 850)
+        self.assertEqual(LoRaCommandCodec.get_safe_interval(12), 3000)
+
 if __name__ == '__main__':
     unittest.main()

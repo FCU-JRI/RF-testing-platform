@@ -315,10 +315,6 @@ class NodePanel(ttk.Frame):
                 line = raw.decode('utf-8', errors='ignore').strip()
                 if not line: continue
                 
-                global web_srv
-                if web_srv and not isinstance(self.serial_conn, HttpSseSerialBridge):
-                    web_srv.broadcast({"type": "serial_data", "data": line})
-                
                 now = datetime.datetime.now().strftime("%H:%M:%S")
                 
                 # Check for Receiver logs (+RCV:)
@@ -335,7 +331,8 @@ class NodePanel(ttk.Frame):
                 else:
                     self.out.write(f"{line}\n")
             except Exception as e:
-                break
+                self.out.write(f"[ERROR in read_loop] {e}\n")
+                time.sleep(0.1)
 
     def process_tx_log(self, line, now_str):
         # Format: [FORM] SF7 | ID:5 | UUID:xxx-yyy | Len:255 | ToA:123ms

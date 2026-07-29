@@ -39,6 +39,7 @@ class SSEHandler(BaseHTTPRequestHandler):
             self.send_header('Connection', 'keep-alive')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
+            self.wfile.flush()
             
             q = self.server.add_client()
             

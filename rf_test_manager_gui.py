@@ -24,6 +24,11 @@ from lora_session import LoRaSessionEngine, SerialTransport
 
 class HttpSseSerialBridge:
     def __init__(self, base_url):
+        if '://' not in base_url:
+            base_url = 'http://' + base_url
+        parsed = urllib.parse.urlparse(base_url)
+        self.host = parsed.hostname or '127.0.0.1'
+        self.port = parsed.port or 8080
         self.base_url = base_url.rstrip('/')
         self.is_open = True
         self._q = queue.Queue()
@@ -32,24 +37,35 @@ class HttpSseSerialBridge:
         self._thread.start()
         
     def _sse_loop(self):
-        req = urllib.request.Request(self.base_url + '/api/stream')
-        req.add_header('Cache-Control', 'no-cache')
-        req.add_header('Accept', 'text/event-stream')
+        import socket
         while not self._stop_event.is_set():
             try:
-                with urllib.request.urlopen(req, timeout=5) as response:
-                    for line in response:
-                        if self._stop_event.is_set():
-                            break
-                        line = line.decode('utf-8').strip()
-                        if line.startswith('data:'):
-                            try:
-                                data = json.loads(line[5:])
-                                if data.get('type') == 'serial_data':
-                                    self._q.put((data['data'] + '\n').encode('utf-8'))
-                            except: pass
+                sock = socket.create_connection((self.host, self.port), timeout=5)
+                req_str = f"GET /api/stream HTTP/1.1\r\nHost: {self.host}:{self.port}\r\nAccept: text/event-stream\r\nConnection: keep-alive\r\n\r\n"
+                sock.sendall(req_str.encode('utf-8'))
+                
+                sock_file = sock.makefile('r', encoding='utf-8', errors='ignore')
+                # Skip HTTP response headers
+                while not self._stop_event.is_set():
+                    h_line = sock_file.readline()
+                    if not h_line or h_line.strip() == "":
+                        break
+
+                while not self._stop_event.is_set():
+                    line = sock_file.readline()
+                    if not line:
+                        break
+                    line_str = line.strip()
+                    if line_str.startswith('data:'):
+                        try:
+                            data = json.loads(line_str[5:])
+                            if data.get('type') == 'serial_data':
+                                self._q.put((data['data'] + '\n').encode('utf-8'))
+                        except Exception:
+                            pass
+                sock.close()
             except Exception:
-                time.sleep(2)
+                time.sleep(0.5)
                 
     def read(self, size=1):
         return b''

@@ -188,6 +188,7 @@ class NodePanel(ttk.Frame):
                 self.out.write(f"[INFO] Connected to {port}\n")
                 
                 if self.mode_var.get() == "rx":
+                    time.sleep(0.3)
                     self.send_raw("x")
                     
                 threading.Thread(target=self.read_loop, daemon=True).start()
@@ -509,7 +510,20 @@ class RfTestManagerGUI(tk.Tk):
         style.map('TNotebook.Tab', background=[('selected', accent_blue)], foreground=[('selected', bg_dark)])
         
     def refresh_ports(self):
-        ports = [p.device for p in serial.tools.list_ports.comports()]
+        all_ports = serial.tools.list_ports.comports()
+        hw_ports = []
+        other_ports = []
+
+        for p in all_ports:
+            dev = p.device
+            if any(k in dev.lower() for k in ['bluetooth', 'debug-console', 'edifier', 'jbl', 'soundform']):
+                continue
+            if p.vid is not None or any(k in dev.lower() for k in ['usbserial', 'usbmodem', 'com']):
+                hw_ports.append(dev)
+            else:
+                other_ports.append(dev)
+
+        ports = hw_ports + other_ports
         if not ports:
             ports = ["No devices found"]
             

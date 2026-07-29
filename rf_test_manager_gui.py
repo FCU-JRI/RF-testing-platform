@@ -494,11 +494,19 @@ class RfTestManagerGUI(tk.Tk):
         bg_dark = '#0b0f19'
         card_bg = '#131b2e'
         card_border = '#1e293b'
+        input_bg = '#1e293b'
+        input_fg = '#06b6d4'  # Vibrant Cyan text for high visibility
         text_light = '#f8fafc'
         accent_blue = '#06b6d4'
 
         self.option_add('*Background', bg_dark)
         self.option_add('*Foreground', text_light)
+        self.option_add('*Entry.background', input_bg)
+        self.option_add('*Entry.foreground', input_fg)
+        self.option_add('*Combobox*background', input_bg)
+        self.option_add('*Combobox*foreground', input_fg)
+        self.option_add('*Listbox.background', input_bg)
+        self.option_add('*Listbox.foreground', text_light)
 
         style.configure('.', background=bg_dark, foreground=text_light, font=('Inter', 10))
         style.configure('TFrame', background=bg_dark)
@@ -510,6 +518,12 @@ class RfTestManagerGUI(tk.Tk):
         style.configure('TNotebook', background=bg_dark, borderwidth=0)
         style.configure('TNotebook.Tab', background=card_bg, foreground=text_light, padding=[12, 6], font=('Inter', 10, 'bold'))
         style.map('TNotebook.Tab', background=[('selected', accent_blue)], foreground=[('selected', bg_dark)])
+
+        # Entry & Combobox High-Contrast Field Styles
+        style.configure('TEntry', fieldbackground=input_bg, foreground=input_fg, insertcolor=text_light)
+        style.configure('TCombobox', fieldbackground=input_bg, background=card_bg, foreground=input_fg, arrowcolor=accent_blue)
+        style.map('TCombobox', fieldbackground=[('readonly', input_bg)], foreground=[('readonly', input_fg)], selectbackground=[('readonly', input_bg)], selectforeground=[('readonly', input_fg)])
+        style.map('TEntry', fieldbackground=[('focus', input_bg)], foreground=[('focus', input_fg)])
         
     def refresh_ports(self):
         all_ports = serial.tools.list_ports.comports()

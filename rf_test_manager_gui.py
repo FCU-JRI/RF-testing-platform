@@ -99,18 +99,20 @@ class NodePanel(ttk.Frame):
         self.setup_ui()
         
     def setup_ui(self):
-        # Connection
+        # Connection Frame
         conn_frame = ttk.LabelFrame(self, text=f"Connection - Node {self.node_name}", padding=10)
         conn_frame.pack(fill='x', pady=5)
         
-        ttk.Label(conn_frame, text="Port/URL:").pack(side='left')
-        self.port_cb = ttk.Combobox(conn_frame, width=32)
+        ttk.Label(conn_frame, text="Port / Peer:").pack(side='left', padx=2)
+        self.port_cb = ttk.Combobox(conn_frame, width=24)
         self.port_cb.pack(side='left', padx=5)
         self.btn_conn = ttk.Button(conn_frame, text="Connect", command=self.toggle_connection)
         self.btn_conn.pack(side='left', padx=5)
-        ttk.Label(conn_frame, text="(支援 COM3, socket://IP:PORT, http://IP:8080)", foreground="gray").pack(side='left')
         
-        # Operation Mode
+        self.lbl_status = ttk.Label(conn_frame, text="🔴 Disconnected", font=('Inter', 10, 'bold'))
+        self.lbl_status.pack(side='left', padx=15)
+        
+        # Operation Role Frame
         mode_frame = ttk.LabelFrame(self, text="Operation Role", padding=10)
         mode_frame.pack(fill='x', pady=5)
         
@@ -118,23 +120,33 @@ class NodePanel(ttk.Frame):
         ttk.Radiobutton(mode_frame, text="Receiver (RX) Mode", variable=self.mode_var, value="rx", command=self.on_mode_change).pack(side='left', padx=10)
         ttk.Radiobutton(mode_frame, text="Transmitter (TX) Mode", variable=self.mode_var, value="tx", command=self.on_mode_change).pack(side='left', padx=10)
         
-        # TX Controls (initially disabled)
-        self.tx_frame = ttk.Frame(mode_frame)
-        self.tx_frame.pack(side='left', fill='x', expand=True, padx=20)
+        # TX Controls (2x2 Grid, responsive and never clipped)
+        self.tx_frame = ttk.LabelFrame(self, text="TX Test Controls", padding=10)
         
-        ttk.Label(self.tx_frame, text="Int(ms):").grid(row=0, column=0, padx=2)
+        ttk.Label(self.tx_frame, text="Interval (ms):").grid(row=0, column=0, sticky='w', padx=5, pady=2)
         self.tx_int = tk.StringVar(value="150")
-        ttk.Entry(self.tx_frame, textvariable=self.tx_int, width=5).grid(row=0, column=1, padx=2)
+        ttk.Entry(self.tx_frame, textvariable=self.tx_int, width=6).grid(row=0, column=1, sticky='w', padx=5, pady=2)
         
-        ttk.Button(self.tx_frame, text="Formal", command=lambda: self.send_tx_cmd("formal")).grid(row=0, column=2, padx=2)
-        ttk.Button(self.tx_frame, text="Stress", command=lambda: self.send_tx_cmd("stress")).grid(row=0, column=3, padx=2)
-        ttk.Button(self.tx_frame, text="Pre-Test", command=lambda: self.send_tx_cmd("pre")).grid(row=0, column=4, padx=2)
-        ttk.Button(self.tx_frame, text="Stop", command=lambda: self.send_tx_cmd("stop")).grid(row=0, column=5, padx=2)        
+        btn_formal = ttk.Button(self.tx_frame, text="Formal Test", command=lambda: self.send_tx_cmd("formal"))
+        btn_formal.grid(row=1, column=0, padx=5, pady=4, sticky='ew')
+        
+        btn_stress = ttk.Button(self.tx_frame, text="Stress Test", command=lambda: self.send_tx_cmd("stress"))
+        btn_stress.grid(row=1, column=1, padx=5, pady=4, sticky='ew')
+        
+        btn_pre = ttk.Button(self.tx_frame, text="Pre-Test", command=lambda: self.send_tx_cmd("pre"))
+        btn_pre.grid(row=2, column=0, padx=5, pady=4, sticky='ew')
+        
+        btn_stop = ttk.Button(self.tx_frame, text="🛑 STOP Test", command=lambda: self.send_tx_cmd("stop"))
+        btn_stop.grid(row=2, column=1, padx=5, pady=4, sticky='ew')
+
+        self.tx_frame.columnconfigure(0, weight=1)
+        self.tx_frame.columnconfigure(1, weight=1)
+
         # Dynamic Settings
         dyn_frame = ttk.LabelFrame(self, text="Dynamic LoRa Settings (Applies Immediately)", padding=10)
         dyn_frame.pack(fill='x', pady=5)
         
-        ttk.Label(dyn_frame, text="Freq (MHz):").grid(row=0, column=0)
+        ttk.Label(dyn_frame, text="Freq (MHz):").grid(row=0, column=0, padx=2)
         self.dyn_f = ttk.Combobox(dyn_frame, values=["433", "915"], width=5)
         self.dyn_f.current(1)
         self.dyn_f.grid(row=0, column=1, padx=2)
@@ -157,7 +169,7 @@ class NodePanel(ttk.Frame):
         ttk.Button(dyn_frame, text="Apply", command=self.apply_settings).grid(row=0, column=8, padx=10)
         
         # Console
-        self.console = scrolledtext.ScrolledText(self, height=15, bg='#1e1e1e', fg='#00ff00', font=('Consolas', 11))
+        self.console = scrolledtext.ScrolledText(self, height=15, bg='#0b0f19', fg='#10b981', font=('Consolas', 11))
         self.console.pack(fill='both', expand=True, pady=5)
         self.out = ThreadSafeConsole(self.console)
         
@@ -166,9 +178,15 @@ class NodePanel(ttk.Frame):
     def update_ui_state(self):
         mode = self.mode_var.get()
         if mode == 'tx':
-            self.tx_frame.pack(side='left', fill='x', expand=True, padx=20)
+            self.tx_frame.pack(fill='x', pady=5)
         else:
             self.tx_frame.pack_forget()
+
+    def update_status_badge(self, connected: bool, port_info: str = ""):
+        if connected:
+            self.lbl_status.config(text=f"🟢 Connected ({port_info})", foreground="#10b981")
+        else:
+            self.lbl_status.config(text="🔴 Disconnected", foreground="#ef4444")
 
     def on_mode_change(self):
         self.update_ui_state()
@@ -197,14 +215,10 @@ class NodePanel(ttk.Frame):
                 messagebox.showerror("Error", "Invalid port!")
                 return
             try:
-                if port.startswith("http://") or port.startswith("https://"):
-                    self.serial_conn = HttpSseSerialBridge(port)
-                    self.peer_url = port
-                else:
-                    self.serial_conn = serial.serial_for_url(port, baudrate=115200, timeout=0.1)
-                    self.peer_url = None
+                self.serial_conn = serial.serial_for_url(port, baudrate=115200, timeout=0.1)
                 self.running = True
                 self.btn_conn.config(text="Disconnect")
+                self.update_status_badge(True, port)
                 self.out.write(f"[INFO] Connected to {port}\n")
                 
                 if self.mode_var.get() == "rx":
@@ -220,8 +234,8 @@ class NodePanel(ttk.Frame):
             if self.csv_file:
                 self.csv_file.close()
                 self.csv_file = None
-            self.peer_url = None
             self.btn_conn.config(text="Connect")
+            self.update_status_badge(False)
             self.out.write("[INFO] Disconnected\n")
 
     RF_PARAM_PREFIXES = ('f ', 'b ', 'c ', 'v ', 'l ')
@@ -451,6 +465,9 @@ class RfTestManagerGUI(tk.Tk):
         super().__init__()
         self.title("LoRa Avionic Link Test & Flashing Manager (Unified Nodes)")
         self.geometry("1400x800")
+        self.configure(bg='#0b0f19')
+        
+        self.configure_styles()
         
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill='both', expand=True, padx=5, pady=5)
@@ -462,6 +479,31 @@ class RfTestManagerGUI(tk.Tk):
         self.notebook.add(self.tab_flash, text="Flasher")
         self.notebook.add(self.tab_dual, text="Dual Nodes View")
         self.notebook.add(self.tab_analysis, text="Log Analyzer")
+
+    def configure_styles(self):
+        style = ttk.Style(self)
+        style.theme_use('clam')
+
+        # Colors
+        bg_dark = '#0b0f19'
+        card_bg = '#131b2e'
+        card_border = '#1e293b'
+        text_light = '#f8fafc'
+        accent_blue = '#06b6d4'
+
+        self.option_add('*Background', bg_dark)
+        self.option_add('*Foreground', text_light)
+
+        style.configure('.', background=bg_dark, foreground=text_light, font=('Inter', 10))
+        style.configure('TFrame', background=bg_dark)
+        style.configure('TLabelframe', background=card_bg, foreground=accent_blue, bordercolor=card_border, lightcolor=card_border, darkcolor=card_border)
+        style.configure('TLabelframe.Label', background=card_bg, foreground=accent_blue, font=('Inter', 10, 'bold'))
+        style.configure('TLabel', background=bg_dark, foreground=text_light)
+        style.configure('TButton', background=card_border, foreground=accent_blue, borderwidth=1, focuscolor=accent_blue)
+        style.map('TButton', background=[('active', accent_blue)], foreground=[('active', bg_dark)])
+        style.configure('TNotebook', background=bg_dark, borderwidth=0)
+        style.configure('TNotebook.Tab', background=card_bg, foreground=text_light, padding=[12, 6], font=('Inter', 10, 'bold'))
+        style.map('TNotebook.Tab', background=[('selected', accent_blue)], foreground=[('selected', bg_dark)])
         
         self.create_flash_tab()
         

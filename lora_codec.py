@@ -25,6 +25,14 @@ class LoRaCommandCodec:
         12: 3000
     }
 
+    RF_PARAM_PREFIXES = ('f ', 'b ', 'c ', 'v ', 'l ')
+
+    @classmethod
+    def is_rf_param_cmd(cls, cmd: str) -> bool:
+        """Return True only for RF parameter commands that should sync to peer nodes."""
+        c = cmd.strip()
+        return any(c.startswith(p) for p in cls.RF_PARAM_PREFIXES)
+
     @classmethod
     def get_safe_interval(cls, sf: int) -> int:
         """Return the safe test packet interval (in ms) for a given Spreading Factor."""

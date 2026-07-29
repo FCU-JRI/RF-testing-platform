@@ -210,12 +210,9 @@ class NodePanel(ttk.Frame):
             self.update_status_badge(False)
             self.out.write("[INFO] Disconnected\n")
 
-    RF_PARAM_PREFIXES = ('f ', 'b ', 'c ', 'v ', 'l ')
-
     def _is_rf_param_cmd(self, cmd):
         """Return True only for RF parameter commands that should sync to peer."""
-        c = cmd.strip()
-        return any(c.startswith(p) for p in self.RF_PARAM_PREFIXES)
+        return LoRaCommandCodec.is_rf_param_cmd(cmd)
 
     def sync_ui_controls(self, cmd):
         c = cmd.strip()
@@ -344,8 +341,10 @@ class NodePanel(ttk.Frame):
                 else:
                     self.out.write(f"{line}\n")
             except Exception as e:
+                if not self.running or not self.serial_conn or not getattr(self.serial_conn, 'is_open', False):
+                    break
                 self.out.write(f"[ERROR in read_loop] {e}\n")
-                time.sleep(0.1)
+                time.sleep(0.2)
 
     def process_tx_log(self, line, now_str):
         # Format: [FORM] SF7 | ID:5 | UUID:xxx-yyy | Len:255 | ToA:123ms
@@ -556,22 +555,18 @@ class RfTestManagerGUI(tk.Tk):
         if not ports:
             ports = ["No devices found"]
             
-        self.flash_port_cb['values'] = ports
-        self.nodeA.port_cb['values'] = ports
-        self.nodeB.port_cb['values'] = ports
-        
-        if ports and ports[0] != "No devices found":
-            self.flash_port_cb.current(0)
-            self.nodeA.port_cb.current(0)
-            if len(ports) > 1:
-                self.nodeB.port_cb.current(1)
-            else:
-                self.nodeB.port_cb.current(0)
-            
-    def on_refresh(self):
-        global gui_app
-        if gui_app:
-            gui_app.refresh_ports()
+        def _update_cb(cb, default_idx=0):
+            curr = cb.get()
+            cb['values'] = ports
+            if curr in ports:
+                cb.set(curr)
+            elif ports and ports[0] != "No devices found":
+                idx = default_idx if default_idx < len(ports) else 0
+                cb.current(idx)
+
+        _update_cb(self.flash_port_cb, 0)
+        _update_cb(self.nodeA.port_cb, 0)
+        _update_cb(self.nodeB.port_cb, 1 if len(ports) > 1 else 0)
 
     # --- FLASHER TAB ---
     def create_flash_tab(self):

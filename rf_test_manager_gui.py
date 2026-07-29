@@ -21,56 +21,17 @@ import shutil
 from lora_codec import LoRaCommandCodec
 from lora_telemetry import LoRaTelemetryEngine
 from lora_session import LoRaSessionEngine, SerialTransport
+from peer_sync import PeerSyncManager
 
-
-
-web_srv = None
 gui_app = None
 
-def get_web_status():
-    return {"status": "gui_mode"}
-
-def execute_web_action(action, params):
+def on_peer_param_received(cmd):
     global gui_app
-    if not gui_app:
-        return {"status": "error", "message": "GUI not ready"}
-        
-    active_serial = None
-    for node in [gui_app.nodeA, gui_app.nodeB]:
-        if node.running and node.serial_conn and not isinstance(node.serial_conn, HttpSseSerialBridge):
-            active_serial = node.serial_conn
-            break
-            
-    if action == 'send_command':
-        cmd = params.get('cmd')
-        if cmd and active_serial:
-            active_serial.write((cmd.strip() + '\n').encode('utf-8'))
-            return {"status": "ok"}
-        return {"status": "error", "message": "No active serial"}
-        
-    elif action == 'apply_settings':
-        freq, bw, cr, sf, length = params.get('freq'), params.get('bw'), params.get('cr'), params.get('sf'), params.get('len')
-        if active_serial:
-            if freq: active_serial.write(f"f {int(float(freq)*1E6)}\n".encode('utf-8')); time.sleep(0.05)
-            if bw: active_serial.write(f"b {bw}\n".encode('utf-8')); time.sleep(0.05)
-            if cr: active_serial.write(f"c {cr}\n".encode('utf-8')); time.sleep(0.05)
-            if sf: active_serial.write(f"v {sf}\n".encode('utf-8')); time.sleep(0.05)
-            if length: active_serial.write(f"l {length}\n".encode('utf-8')); time.sleep(0.05)
-            return {"status": "ok"}
-        return {"status": "error", "message": "No active serial"}
-        
-    elif action == 'start_test':
-        test_type, sf, interval = params.get('type'), params.get('sf', '7'), params.get('interval', '150')
-        if active_serial:
-            if test_type == 'formal': active_serial.write(f"{sf}\n".encode('utf-8'))
-            elif test_type == 'pre': active_serial.write(f"p {sf}\n".encode('utf-8'))
-            elif test_type == 'stress': active_serial.write(f"s {sf} {interval}\n".encode('utf-8'))
-            elif test_type == 'stop': active_serial.write(b"x\n")
-            return {"status": "ok"}
-        return {"status": "error", "message": "No active serial"}
-        
-    return {"status": "error", "message": f"Unknown action: {action}"}
+    if gui_app:
+        gui_app.nodeA.send_raw(cmd, is_forwarded=True)
+        gui_app.nodeB.send_raw(cmd, is_forwarded=True)
 
+peer_sync_mgr = PeerSyncManager(port=50077, on_param_received=on_peer_param_received)
 
 class ThreadSafeConsole:
     def __init__(self, text_widget):
@@ -238,31 +199,47 @@ class NodePanel(ttk.Frame):
             self.update_status_badge(False)
             self.out.write("[INFO] Disconnected\n")
 
-    RF_PARAM_PREFIXES = ('f ', 'b ', 'c ', 'v ', 'l ')
-
-    def _is_rf_param_cmd(self, cmd):
-        """Return True only for RF parameter commands that should sync to peer."""
+    def sync_ui_controls(self, cmd):
         c = cmd.strip()
-        return any(c.startswith(p) for p in self.RF_PARAM_PREFIXES)
+        parts = c.split()
+        if not parts:
+            return
+        prefix = parts[0]
+        val = parts[1] if len(parts) > 1 else ""
+
+        if prefix == 'f':
+            try:
+                mhz = str(int(float(val) / 1e6))
+                if mhz in self.dyn_f['values']:
+                    self.dyn_f.set(mhz)
+            except Exception:
+                pass
+        elif prefix == 'b':
+            if val in self.dyn_b['values']:
+                self.dyn_b.set(val)
+        elif prefix == 'c':
+            if val in self.dyn_c['values']:
+                self.dyn_c.set(val)
+        elif prefix == 'v':
+            if val in self.dyn_s['values']:
+                self.dyn_s.set(val)
 
     def send_raw(self, cmd, is_forwarded=False):
-        global gui_app
+        global gui_app, peer_sync_mgr
         if self.running and self.serial_conn:
             self.serial_conn.write((cmd + '\n').encode())
+            
+        if self._is_rf_param_cmd(cmd):
+            self.sync_ui_controls(cmd)
             if not is_forwarded:
-                if isinstance(self.serial_conn, HttpSseSerialBridge):
-                    # HTTP mode: command already forwarded via HttpSseSerialBridge.write()
-                    # Additionally push RF params to the other local NodePanel if it's a local COM
-                    if gui_app and self._is_rf_param_cmd(cmd):
-                        peer = gui_app.nodeB if self.node_name == 'A' else gui_app.nodeA
-                        if peer and peer.running and peer.serial_conn and not isinstance(peer.serial_conn, HttpSseSerialBridge):
+                if gui_app:
+                    peer = gui_app.nodeB if self.node_name == 'A' else gui_app.nodeA
+                    if peer:
+                        peer.sync_ui_controls(cmd)
+                        if peer.running and peer.serial_conn:
                             peer.send_raw(cmd, is_forwarded=True)
-                else:
-                    # Local COM: forward RF params to remote peer's API if connected via HTTP
-                    if gui_app and self._is_rf_param_cmd(cmd):
-                        peer = gui_app.nodeB if self.node_name == 'A' else gui_app.nodeA
-                        if peer and peer.peer_url:
-                            threading.Thread(target=peer.http_sync_send, args=(cmd,), daemon=True).start()
+                if peer_sync_mgr:
+                    peer_sync_mgr.send_param_cmd(cmd)
 
     def apply_settings(self):
         f_val = self.dyn_f.get()

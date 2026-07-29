@@ -1,0 +1,3 @@
+# Peer Sync Socket & GUI/UX Overhaul
+
+We decided to completely remove the Web server module (`web_server.py`, `index.html`) in favor of a dedicated, lightweight `PeerSyncSocket` module for machine-to-machine IP parameter synchronization. In addition, we overhaul the desktop Tkinter GUI with a modern dark theme (`#0b0f19`), dynamic status badges, and a responsive 2x2 grid layout for transmitter test buttons to eliminate button clipping on smaller dual-monitor screen windows. When IP parameter commands are received, both the connected ESP32 hardware and the companion NodePanel's UI controls automatically update to maintain complete visual alignment across dual monitors.

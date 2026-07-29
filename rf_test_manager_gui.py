@@ -199,6 +199,13 @@ class NodePanel(ttk.Frame):
             self.update_status_badge(False)
             self.out.write("[INFO] Disconnected\n")
 
+    RF_PARAM_PREFIXES = ('f ', 'b ', 'c ', 'v ', 'l ')
+
+    def _is_rf_param_cmd(self, cmd):
+        """Return True only for RF parameter commands that should sync to peer."""
+        c = cmd.strip()
+        return any(c.startswith(p) for p in self.RF_PARAM_PREFIXES)
+
     def sync_ui_controls(self, cmd):
         c = cmd.strip()
         parts = c.split()

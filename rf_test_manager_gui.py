@@ -666,9 +666,6 @@ class RfTestManagerGUI(tk.Tk):
             self.analysis_console.insert(tk.END, f"Error: {e}\n")
 
 if __name__ == "__main__":
-    from web_server import start_web_server
-    web_srv = start_web_server(8080, os.path.dirname(os.path.abspath(__file__)), get_web_status, execute_web_action)
-    
     app = RfTestManagerGUI()
     gui_app = app
     app.mainloop()

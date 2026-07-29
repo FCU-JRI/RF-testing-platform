@@ -702,77 +702,8 @@ def analyze_log():
     except Exception as e:
         print(f"[ERROR] Failed to read or parse CSV: {e}")
 
-def get_web_status():
-    global ACTIVE_SERIAL, CURRENT_SF, CURRENT_FREQ, web_srv
-    serial_port_name = ACTIVE_SERIAL.port if (ACTIVE_SERIAL and ACTIVE_SERIAL.is_open) else None
-    
-    import serial.tools.list_ports
-    ports = [p.device for p in serial.tools.list_ports.comports()]
-    local_web_port = web_srv.web_port if web_srv else 8080
-    
-    return {
-        "serial_connected": serial_port_name is not None,
-        "serial_port": serial_port_name,
-        "peer_connected": False,
-        "peer_ip": None,
-        "local_port": 50077,
-        "web_port": local_web_port,
-        "current_sf": CURRENT_SF,
-        "current_freq": CURRENT_FREQ,
-        "available_ports": ports
-    }
-
-def execute_web_action(action, params):
-    global ACTIVE_SERIAL
-    
-    if action == 'send_command':
-        cmd = params.get('cmd')
-        if cmd and ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
-            write_to_serial(ACTIVE_SERIAL, cmd)
-            return {"status": "ok"}
-        return {"status": "error", "message": "Serial port not active or command empty"}
-        
-    elif action == 'apply_settings':
-        freq = params.get('freq')
-        bw = params.get('bw')
-        cr = params.get('cr')
-        sf = params.get('sf')
-        length = params.get('len')
-        
-        if ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
-            if freq: write_to_serial(ACTIVE_SERIAL, f"f {int(float(freq)*1E6)}")
-            if bw: write_to_serial(ACTIVE_SERIAL, f"b {bw}")
-            if cr: write_to_serial(ACTIVE_SERIAL, f"c {cr}")
-            if sf: write_to_serial(ACTIVE_SERIAL, f"v {sf}")
-            if length: write_to_serial(ACTIVE_SERIAL, f"l {length}")
-            return {"status": "ok"}
-        return {"status": "error", "message": "Serial port not active"}
-        
-    elif action == 'start_test':
-        test_type = params.get('type')
-        sf = params.get('sf', '7')
-        interval = params.get('interval', '150')
-        
-        if ACTIVE_SERIAL and ACTIVE_SERIAL.is_open:
-            if test_type == 'formal': write_to_serial(ACTIVE_SERIAL, sf)
-            elif test_type == 'pre': write_to_serial(ACTIVE_SERIAL, f"p {sf}")
-            elif test_type == 'stress': write_to_serial(ACTIVE_SERIAL, f"s {sf} {interval}")
-            elif test_type == 'stop': write_to_serial(ACTIVE_SERIAL, "x")
-            return {"status": "ok"}
-        return {"status": "error", "message": "Serial port not active"}
-        
-    return {"status": "error", "message": f"Unknown action: {action}"}
-        
-    return {"status": "error", "message": f"Unknown action: {action}"}
-
 def main():
     """Main execution menu loop."""
-    global web_srv
-    
-    # Initialize Web Server (port 8080 default, serving current directory)
-    from web_server import start_web_server
-    web_srv = start_web_server(8080, os.path.dirname(os.path.abspath(__file__)), get_web_status, execute_web_action)
-    
     while True:
         print("\n" + "=" * 64)
         print("          LoRa Avionic Link Test & Flashing Manager             ")
